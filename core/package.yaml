@@ -1,0 +1,67 @@
+name:                open-dofus-core
+version:             0.1.0.0
+github:              "nerded1337/open-dofus"
+license:             GPL-3
+author:              "nerded"
+maintainer:          "nerded.nerded@gmail.com"
+copyright:           "2019 nerded"
+
+extra-source-files:
+- README.md
+
+description:
+  Please see the README on GitHub at <https://github.com/nerded1337/open-dofus#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- primitive
+- primitive-unlifted
+- byteslice
+- bytestring
+- scientific
+- time
+- ip
+- stm
+- containers
+- unordered-containers
+- vector
+- vector-binary-instances
+- directory
+- filepath
+- path
+- linear
+- pqueue
+- aeson
+- aeson-extra
+- aeson-pretty
+- clock
+- mtl
+- uuid
+- sockets
+- text
+- beam-core
+- beam-postgres
+- beam-migrate
+- postgresql-simple
+- asil
+- binary
+- attoparsec
+- lens
+- rio
+- rio-prettyprint
+- vinyl
+
+default-extensions:
+  - NoImplicitPrelude 
+
+library:
+  source-dirs: src
+  ghc-options:
+    - -Wall
+    # - -fspecialise-aggressively
+    # - -fexpose-all-unfoldings
+    # - -fstatic-argument-transformation
+    # - -feager-blackholing
+    - -Werror
+    # - -O2
+    # - -fllvm

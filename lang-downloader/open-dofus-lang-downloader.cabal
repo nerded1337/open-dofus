@@ -1,0 +1,42 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.32.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 3881589227ad478f279418897a858ec6ce34ad6499a65d134fb69ba9d929ae0d
+
+name:           open-dofus-lang-downloader
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/nerded1337/open-dofus#readme>
+homepage:       https://github.com/nerded1337/open-dofus#readme
+bug-reports:    https://github.com/nerded1337/open-dofus/issues
+author:         nerded
+maintainer:     nerded.nerded@gmail.com
+copyright:      2019 nerded
+license:        GPL-3
+build-type:     Simple
+extra-source-files:
+    README.md
+
+source-repository head
+  type: git
+  location: https://github.com/nerded1337/open-dofus
+
+executable open-dofus-lang-downloader
+  main-is: Main.hs
+  other-modules:
+      Paths_open_dofus_lang_downloader
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Werror -threaded -rtsopts "-with-rtsopts=-N -T"
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , directory
+    , http-client
+    , http-download
+    , path
+    , rio
+    , rio-prettyprint
+  default-language: Haskell2010

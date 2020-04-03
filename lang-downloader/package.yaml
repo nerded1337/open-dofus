@@ -1,0 +1,34 @@
+name:                open-dofus-lang-downloader
+version:             0.1.0.0
+github:              "nerded1337/open-dofus"
+license:             GPL-3
+author:              "nerded"
+maintainer:          "nerded.nerded@gmail.com"
+copyright:           "2019 nerded"
+
+extra-source-files:
+- README.md
+
+description:
+  Please see the README on GitHub at <https://github.com/nerded1337/open-dofus#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- bytestring
+- path
+- http-client
+- http-download
+- rio
+- rio-prettyprint
+- directory
+
+executables:
+  open-dofus-lang-downloader:
+    source-dirs: src
+    main: Main.hs
+    ghc-options:
+      - -Wall
+      - -Werror
+      - -threaded
+      - -rtsopts
+      - "\"-with-rtsopts=-N -T\""

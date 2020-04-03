@@ -1,0 +1,62 @@
+name:                open-dofus-auth
+version:             0.1.0.0
+github:              "nerded1337/open-dofus"
+license:             GPL-3
+author:              "nerded"
+maintainer:          "nerded.nerded@gmail.com"
+copyright:           "2019 nerded"
+
+extra-source-files:
+- README.md
+
+description:
+  Please see the README on GitHub at <https://github.com/nerded1337/open-dofus#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- sockets
+- primitive
+- primitive-unlifted
+- byteslice
+- text
+- bytestring
+- ip
+- stm
+- containers
+- vector
+- directory
+- lens
+- linear
+- pqueue
+- MonadRandom
+- aeson
+- clock
+- mtl
+- uuid
+- open-dofus-core
+- open-dofus-db
+- beam-core
+- beam-postgres
+- beam-migrate
+- postgresql-simple
+- rio
+
+default-extensions:
+  - NoImplicitPrelude 
+
+executables:
+  open-dofus-auth:
+    source-dirs: src
+    main: Main.hs
+    ghc-options:
+      - -Wall
+      - -Werror
+      - -threaded
+      - -rtsopts
+      # - -O2
+      # - -fspecialise-aggressively
+      # - -fexpose-all-unfoldings
+      # - -feager-blackholing
+      # - -fstatic-argument-transformation
+      # - -fllvm
+      - "\"-with-rtsopts=-N -T -H128m -K64m\""

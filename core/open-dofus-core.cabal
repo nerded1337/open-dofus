@@ -1,0 +1,83 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.32.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 85d1af7c75a4f2a85482fbac66de57eb05a938c55103d18096b631bacb0ae03b
+
+name:           open-dofus-core
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/nerded1337/open-dofus#readme>
+homepage:       https://github.com/nerded1337/open-dofus#readme
+bug-reports:    https://github.com/nerded1337/open-dofus/issues
+author:         nerded
+maintainer:     nerded.nerded@gmail.com
+copyright:      2019 nerded
+license:        GPL-3
+build-type:     Simple
+extra-source-files:
+    README.md
+
+source-repository head
+  type: git
+  location: https://github.com/nerded1337/open-dofus
+
+library
+  exposed-modules:
+      OpenDofus.Core.Network.Client
+      OpenDofus.Core.Network.Client.Connection
+      OpenDofus.Core.Network.Client.Message
+      OpenDofus.Core.Network.Client.State
+      OpenDofus.Core.Network.Server
+      OpenDofus.Core.Network.Server.State
+      OpenDofus.Core.Network.Types
+      OpenDofus.Data.Constructible
+      OpenDofus.Game.Constant
+      OpenDofus.Game.Effect
+      OpenDofus.Prelude
+  other-modules:
+      Paths_open_dofus_core
+  hs-source-dirs:
+      src
+  default-extensions: NoImplicitPrelude
+  ghc-options: -Wall -Werror
+  build-depends:
+      aeson
+    , aeson-extra
+    , aeson-pretty
+    , asil
+    , attoparsec
+    , base >=4.7 && <5
+    , beam-core
+    , beam-migrate
+    , beam-postgres
+    , binary
+    , byteslice
+    , bytestring
+    , clock
+    , containers
+    , directory
+    , filepath
+    , ip
+    , lens
+    , linear
+    , mtl
+    , path
+    , postgresql-simple
+    , pqueue
+    , primitive
+    , primitive-unlifted
+    , rio
+    , rio-prettyprint
+    , scientific
+    , sockets
+    , stm
+    , text
+    , time
+    , unordered-containers
+    , uuid
+    , vector
+    , vector-binary-instances
+    , vinyl
+  default-language: Haskell2010
