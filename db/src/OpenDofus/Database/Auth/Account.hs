@@ -19,17 +19,13 @@
 
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE DerivingVia                #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImpredicativeTypes         #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE TypeSynonymInstances       #-}
-
-{-# OPTIONS_GHC -Wno-missing-signatures     #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
 
 module OpenDofus.Database.Auth.Account where
 
@@ -194,7 +190,7 @@ newtype AccountSubscriptionExpirationDate =
 
 newtype AccountRemainingSubscriptionInMilliseconds =
   AccountRemainingSubscriptionInMilliseconds
-    { unAccountRemainingSubscriptionInSeconds :: Int
+    { unAccountRemainingSubscriptionInMilliseconds :: Word32
     }
   deriving newtype (Show, Eq, Ord, Num, Real, Enum, Integral)
 

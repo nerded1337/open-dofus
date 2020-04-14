@@ -40,6 +40,7 @@ import           Control.Applicative           as X
 import           Control.Lens.TH               as X
 import           Data.Bitraversable            as X
 import qualified Data.ByteString.Lazy.Char8    as BS
+import           Data.Coerce                   as X
 import           Data.Foldable                 as X
 import           Data.Int                      as X
 import           Data.Maybe                    as X

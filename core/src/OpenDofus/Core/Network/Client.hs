@@ -39,7 +39,7 @@ import           OpenDofus.Prelude
 {-# INLINE receive #-}
 receive ::
      (HasClientState a, MonadIO m) => a -> MutableBytes RealWorld -> m ()
-receive !x !(MutableBytes !rarr !ro !rl) = liftIO $ do
+receive !x (MutableBytes !rarr !ro !rl) = liftIO $ do
   let buffer = x ^. clientState . clientStateBufferSegment
   (resize, barr, bo, bl') <-
     do (MutableBytes barr bo bl) <- readTVarIO buffer
@@ -62,7 +62,7 @@ parse x = go mempty mempty 0 =<< readTVarIO (x ^. clientState . clientStateBuffe
       -> Int
       -> MutableBytes RealWorld
       -> m (V.Vector ClientMessage)
-    go !b !v !i !buff@(MutableBytes !arr !o !l)
+    go !b !v !i buff@(MutableBytes !arr !o !l)
       | i < l =
         liftIO $ do
           value <- readByteArray arr (o + i)

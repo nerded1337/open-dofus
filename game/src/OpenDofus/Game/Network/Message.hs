@@ -21,17 +21,46 @@
 
 module OpenDofus.Game.Network.Message where
 
+import           Data.ByteString.Lazy.Builder
 import           OpenDofus.Core.Network.Client
+import           OpenDofus.Database
+import           OpenDofus.Game.Character
+import           OpenDofus.Prelude
 
-data GameMessage =
-  HelloGame
+data CharacterCreationFailureReason
+  = CharacterCreationFailureReasonFull
+  | CharacterCreationFailureReasonNameAlreadyExists
+  | CharacterCreationFailureReasonBadName
+  | CharacterCreationFailureReasonSubscriptionIsOver
+  | CharacterCreationFailureReasonInvalidBreed
+  | CharacterCreationFailureReasonInvalidInfos
+
+data GameMessage
+  = HelloGame
   | AccountTicketIsInvalid
   | AccountTicketIsValid
   | AccountRegionalVersion
+  | CharacterList
+      AccountRemainingSubscriptionInMilliseconds
+      [CharacterSelectionInfo]
+  | CharacterCreationSuccess
+  | CharacterCreationFailure CharacterCreationFailureReason
 
 instance ToNetwork GameMessage where
+  {-# INLINE toNetwork #-}
   toNetwork HelloGame = "HG"
   toNetwork AccountTicketIsInvalid = "ATE"
-  -- ATK(CRYPT INDEX)
   toNetwork AccountTicketIsValid = "ATK0"
   toNetwork AccountRegionalVersion = "AVen"
+  toNetwork (CharacterList subscription characters) =
+    "ALK" <>
+    word32Dec (unAccountRemainingSubscriptionInMilliseconds subscription) <>
+    "|" <> intDec (length characters) <> toNetwork (FoldNetwork characters)
+  toNetwork (CharacterCreationFailure reason) = "AAE" <> go reason
+    where
+      go CharacterCreationFailureReasonFull               = "f"
+      go CharacterCreationFailureReasonNameAlreadyExists  = "a"
+      go CharacterCreationFailureReasonBadName            = "n"
+      go CharacterCreationFailureReasonSubscriptionIsOver = "s"
+      go _                                                = ""
+  toNetwork CharacterCreationSuccess = "AAK"

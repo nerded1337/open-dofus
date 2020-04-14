@@ -40,5 +40,5 @@ protocolHandler salt = MessageHandlerCont $ go =<< asks (view handlerInputMessag
         sendMessage
           (AuthFailure
              (AuthFailureInvalidProtocol $ fromString $ show gameProtocolVersion))
-        pure MessageHandlerDisconnect
-    go _ = pure MessageHandlerDisconnect
+        pure $ MessageHandlerDisconnect mempty
+    go _ = pure $ MessageHandlerDisconnect mempty

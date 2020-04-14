@@ -17,4 +17,21 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeApplications #-}
+
 module OpenDofus.Game.Frame.Logout where
+
+import           OpenDofus.Core.Network.Client
+import           OpenDofus.Database
+import           OpenDofus.Game.Server
+import           OpenDofus.Prelude
+
+logoutHandler :: Account -> GameClientHandler
+logoutHandler acc = MessageHandlerCont $ go =<< asks (view handlerInputMessage)
+  where
+    go ClientDisconnected = do
+      runSerializable @AuthDbConn $
+        setAccountIsOnline (acc ^. accountId) (AccountIsOnline False)
+      pure $ MessageHandlerDisconnect $ pure mempty
+    go _ = pure $ logoutHandler acc

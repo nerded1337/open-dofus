@@ -21,10 +21,10 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
 
 module OpenDofus.Core.Network.Server
   ( MessageHandler(..)
+  , MessageHandlerCallback(..)
   , HandlerInput(..)
   , HasHandlerInput(..)
   , HasServerState(..)
@@ -35,7 +35,6 @@ module OpenDofus.Core.Network.Server
   , HasClientState(..)
   , IsServerContext
   , IsServer
-  , IsClient
   , mkServer
   , startServer
   , send
@@ -48,6 +47,7 @@ import           Data.Bytes.Types
 import qualified Data.ByteString.Lazy.Builder               as BS
 import qualified Data.ByteString.Lazy.Builder.Extras        as BS
 import qualified Data.ByteString.Lazy.Char8                 as BS
+import qualified Data.ByteString.Unsafe                     as BS
 import qualified Data.Foldable                              as F
 import qualified Data.Map.Strict                            as M
 import           Data.Primitive                             (MutableByteArray, copyMutableByteArray,
@@ -67,10 +67,7 @@ import           OpenDofus.Core.Network.Types
 import           OpenDofus.Data.Constructible
 import           OpenDofus.Prelude
 
-type IsClient c s
-   = (HasNetworkId c, HasClientConnection c, HasClientState c)
-
-type IsServer s c = (HasServerState s c, IsClient c s, HasClientType s)
+type IsServer s c = (HasServerState s c, HasClientState c, HasClientType s)
 
 type IsServerContext a b m = (IsServer a b, MonadIO m)
 
@@ -88,14 +85,13 @@ defaultAlignment = 1
 
 {-# INLINE mkServer #-}
 mkServer ::
-     (IsClient a b,
-     MonadIO m)
+     (HasClientState a, MonadIO m)
   => Word16
   -> MaxClient
   -> ReceiveBufferSize
   -> ClientCtor a
   -> m (ServerState a)
-mkServer !p !mc !sz !ctor = liftIO $ do
+mkServer !p !mc !sz !ctor = liftIO $
   ServerState p mc sz ctor
     <$> atomically (newTVar mempty)
     <*> atomically (newTVar $ VU.fromList $ unMaxClient <$> [0..mc - 1])
@@ -104,17 +100,27 @@ mkServer !p !mc !sz !ctor = liftIO $ do
          defaultAlignment
 
 {-# INLINE startServer #-}
-startServer :: IsServerContext a b m => a -> MessageHandler a b -> m (Either SI.SocketException ())
+startServer ::
+     IsServerContext a b m
+  => a
+  -> MessageHandler IO a b
+  -> m (Either SI.SocketException ())
 startServer st h = go (st ^. port) (onStarted st h)
   where
     go p onStartedCallback =
       liftIO $ SI.withListener (SI.Peer IPv4.loopback p) onStartedCallback
 
 {-# INLINE onStarted #-}
-onStarted :: IsServerContext a b m => a -> MessageHandler a b -> SI.Listener -> Word16 -> m ()
+onStarted ::
+     IsServerContext a b m
+  => a
+  -> MessageHandler IO a b
+  -> SI.Listener
+  -> Word16
+  -> m ()
 onStarted st h = go $ onConnected st h
   where
-    go onConnectedCallback listener _ = do
+    go onConnectedCallback listener _ =
       liftIO $
         forever $
         SI.forkAcceptedUnmasked
@@ -130,11 +136,16 @@ clientDisconnected ::
   -> (NetworkId, Maybe Int)
   -> m ()
 clientDisconnected st e (netId, slot) = do
-  liftIO $ BS.putStrLn $ BS.pack $ show e
+  void $
+    bitraverse
+      (liftIO .
+       BS.putStrLn . BS.pack . ("Client disconnected with error: " <>) . show)
+      pure
+      e
   void $
     atomically $ do
       modifyTVar cs (M.delete netId)
-      traverse (\s -> modifyTVar cslots (\ss -> s :- ss)) slot
+      traverse (\s -> modifyTVar cslots (s :-)) slot
   where
     cs = st ^. clients
     cslots = st ^. clientSlots
@@ -143,7 +154,7 @@ clientDisconnected st e (netId, slot) = do
 onConnected ::
      IsServerContext a b m
   => a
-  -> MessageHandler a b
+  -> MessageHandler IO a b
   -> SI.Connection
   -> SI.Peer
   -> m (NetworkId, Maybe Int)
@@ -168,7 +179,7 @@ onConnected st h con peer =
         connected <-
           atomically $ do
             connectedClients <- readTVar cs
-            if (M.size connectedClients >= unMaxClient mc)
+            if M.size connectedClients >= unMaxClient mc
               then pure Nothing
               else do
                 client <- ctor netId clientSegment (ClientConnection con peer)
@@ -180,7 +191,7 @@ onConnected st h con peer =
                     pure $ Just (client, slot)
                   _ -> pure Nothing
         case connected of
-          Just !(client, slot) -> do
+          Just (client, slot) -> do
             next <- runMessageHandler h $ HandlerInput st client ClientConnected
             case next of
               h'@(MessageHandlerCont _) -> do
@@ -188,61 +199,59 @@ onConnected st h con peer =
                   onReceive st client h' (MutableBytes buff (slot * sz) sz)
                 case next' of
                   h''@(MessageHandlerCont _) -> do
-                    void $ runMessageHandler h'' $ HandlerInput st client ClientDisconnected
+                    void $
+                      runMessageHandler h'' $
+                      HandlerInput st client ClientDisconnected
                     pure (netId, Just slot)
-                  _ -> do
+                  h''@(MessageHandlerDisconnect _) -> do
+                    void $
+                      runMessageHandler h'' $
+                      HandlerInput st client ClientDisconnected
                     pure (netId, Just slot)
-              _ -> do
+                  _ -> pure (netId, Just slot)
+              h'@(MessageHandlerDisconnect _) -> do
+                liftIO $
+                  void $
+                  runMessageHandler h' $
+                  HandlerInput st client ClientDisconnected
                 pure (netId, Just slot)
-          Nothing -> do
-            pure (netId, Nothing)
+              _ -> pure (netId, Just slot)
+          Nothing -> pure (netId, Nothing)
 
 {-# INLINE onReceive #-}
 onReceive ::
-     (IsClient a c, MonadIO m)
+     (HasClientState a, MonadIO m)
   => b
   -> a
-  -> MessageHandler b a
+  -> MessageHandler IO b a
   -> MutableBytes RealWorld
-  -> m (MessageHandler b a)
-onReceive !st !client !h !slice@(MutableBytes arr off _) =
+  -> m (MessageHandler IO b a)
+onReceive !st !client !h slice@(MutableBytes arr off _) =
   let socket = client ^. clientStateConnection . clientConnectionSocket
       onReceived (MessageHandlerCont f) (Right count) = do
         receive client (MutableBytes arr off count)
         msgs <- parse client
         h' <- handlerLoop msgs (MessageHandlerCont f)
-        loop h'
-      onReceived !h' _ = do
-        pure h'
+        case h' of
+          (MessageHandlerCont _) -> loop h'
+          _                      -> pure h'
+      onReceived !h' _ = pure h'
       loop !f = onReceived f =<< SI.receiveOnce socket slice
    in liftIO $ loop h
   where
-    handlerLoop (x :- xs) (MessageHandlerCont f) = do
-      nextHandler <- runReaderT f $ HandlerInput st client x
+    handlerLoop (x :- xs) !mh = do
+      nextHandler <- runMessageHandler mh $ HandlerInput st client x
       handlerLoop xs nextHandler
-    handlerLoop _ a = pure $! a
+    handlerLoop _ !mh = pure mh
 
 {-# INLINE sendMessage #-}
 sendMessage ::
-     ( IsClient c s
-     , HasHandlerInput i s c
-     , ToNetwork b
-     , MonadIO m
-     , MonadReader i m
-     )
-  => b
-  -> m ()
+     (HasClientState c, ToNetwork b, MonadIO m, MonadReader c m) => b -> m ()
 sendMessage !message = sendMessages [message]
 
 {-# INLINE sendMessages #-}
 sendMessages ::
-     ( IsClient c s
-     , HasHandlerInput i s c
-     , ToNetwork b
-     , Foldable f
-     , MonadIO m
-     , MonadReader i m
-     )
+     (HasClientState c, ToNetwork b, Foldable f, MonadIO m, MonadReader c m)
   => f b
   -> m ()
 sendMessages !messages =
@@ -267,50 +276,59 @@ resizeMutablePinnedByteArray arr n =
 
 {-# INLINE sendBuilder #-}
 sendBuilder ::
-     (IsClient c s, MonadIO m, HasHandlerInput i s c, MonadReader i m)
-  => Int
-  -> BS.Builder
-  -> m ()
+     (HasClientState c, MonadIO m, MonadReader c m) => Int -> BS.Builder -> m ()
 sendBuilder !resizeFactor !message = do
-    arr <- liftIO $ newAlignedPinnedByteArray initialBlockSize 1
-    action <- liftIO $ BS.runBuilder message (mutableByteArrayContents arr) initialBlockSize
-    (written, arr') <- liftIO $ writeToBuffer arr 0 action
-    client <- asks (view handlerInputClient)
-    void $ send client (MutableBytes arr' 0 written)
+  arr <- liftIO $ newAlignedPinnedByteArray initialBlockSize 1
+  action <-
+    liftIO $
+    BS.runBuilder message (mutableByteArrayContents arr) initialBlockSize
+  (written, arr') <- liftIO $ writeToBuffer arr 0 action
+  bs <-
+    liftIO $
+    BS.unsafePackCStringLen $ coerce (mutableByteArrayContents arr', written)
+  liftIO $
+    traverse_ (BS.putStrLn . ("ServerSent: " <>)) $
+    filter (/= "") $ BS.split '\0' $ BS.fromStrict bs
+  client <- ask
+  void $ send client (MutableBytes arr' 0 written)
   where
     initialBlockSize :: Int
     initialBlockSize = 64 * resizeFactor
     writeToBuffer ::
-         (MutableByteArray RealWorld)
+         MutableByteArray RealWorld
       -> Int
       -> (Int, BS.Next)
       -> IO (Int, MutableByteArray RealWorld)
-    writeToBuffer !arr _ !(written, BS.Done) = pure $ (written, arr)
-    writeToBuffer !arr !off !(written, BS.More _ next) = do
+    writeToBuffer !arr _ (written, BS.Done) = pure (written, arr)
+    writeToBuffer !arr !off (written, BS.More _ next) = do
       s <- getSizeofMutableByteArray arr
       arr' <- resizeMutablePinnedByteArray arr (s * 2)
-      r <- next (plusPtr (mutableByteArrayContents arr') (off + written)) ((s - (off + written)) + s)
+      r <-
+        next
+          (plusPtr (mutableByteArrayContents arr') (off + written))
+          ((s - (off + written)) + s)
       (written', arr'') <- writeToBuffer arr' (off + written) r
-      pure $! (written + written', arr'')
-    writeToBuffer !arr !off !(written, BS.Chunk _ next) = do
+      pure (written + written', arr'')
+    writeToBuffer !arr !off (written, BS.Chunk _ next) = do
       s <- getSizeofMutableByteArray arr
       r <- next (plusPtr (mutableByteArrayContents arr) (off + written)) s
       (written', arr') <- writeToBuffer arr (off + written) r
-      pure $! (written + written', arr')
+      pure (written + written', arr')
 
 {-# INLINE send #-}
 send ::
-     (IsClient c s, MonadIO m)
-  => c
+     (HasClientState a, MonadIO m)
+  => a
   -> MutableBytes RealWorld
   -> m (Either (SI.SendException 'SI.Uninterruptible) ())
-send !client = liftIO . SI.send (client ^. clientStateConnection . clientConnectionSocket)
+send !client =
+  liftIO . SI.send (client ^. clientStateConnection . clientConnectionSocket)
 
 {-# INLINE disconnect #-}
 disconnect ::
-     (IsClient c s, HasHandlerInput i s c, MonadIO m, MonadReader i m) => m ()
-disconnect = go =<< asks (view handlerInputClient)
+     (HasClientState a, MonadIO m, MonadReader a m) => m ()
+disconnect = liftIO . go =<< asks (view clientState)
   where
-    go client =
-      liftIO $
-      SI.disconnect_ (client ^. clientStateConnection . clientConnectionSocket)
+    go =
+      void .
+      SI.disconnect . view (clientStateConnection . clientConnectionSocket)

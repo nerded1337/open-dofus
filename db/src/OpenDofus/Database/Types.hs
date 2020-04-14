@@ -21,14 +21,12 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE QuantifiedConstraints      #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
@@ -78,6 +76,11 @@ class (HasQueryType b, Coercible b Connection) =>
   where
   getConnectionPool :: a -> Pool b
 
+instance (HasQueryType a, Coercible a Connection) =>
+         HasConnectPool (Pool a) a where
+  {-# INLINE getConnectionPool #-}
+  getConnectionPool = id
+
 instance (HasConnectPool a b) => HasConnectPool (HandlerInput a x) b where
   {-# INLINE getConnectionPool #-}
   getConnectionPool = getConnectionPool . view handlerInputServer
@@ -97,7 +100,7 @@ instance (Binary a, Typeable a) => FromField (BinaryField a) where
   fromField u v = do
     x <- fromField u v
     case decodeOrFail $ T.fromBinary x of
-      Right (_, _, s) -> pure $ BinaryField $ s
+      Right (_, _, s) -> pure $ BinaryField s
       Left _ -> returnError ConversionFailed u "Unknown BinaryField type"
 
 instance Binary a => HasDefaultSqlDataType Postgres (BinaryField a) where
@@ -146,7 +149,7 @@ instance (ToField a, HasDefaultSqlDataType Postgres a) => ToField (PgArray a) wh
       then Many $
           Plain (byteString "ARRAY[") :
           V.toList (intersperseC (Plain (char8 ',')) . fmap toField $ arr) <>
-          [Plain (byteString "]::" <> byteString (BS.toStrict $ pgRenderSyntaxScript $ getSyntax) <> byteString "[]")]
+          [Plain (byteString "]::" <> byteString (BS.toStrict $ pgRenderSyntaxScript getSyntax) <> byteString "[]")]
       else Plain (byteString "'{}'")
       where
         getSyntax :: PgSyntax

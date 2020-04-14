@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4977ee4ae2819dc8accf78320c7f1d53d7a68f8fd45fabad56ff9128e0783157
+-- hash: 0f71d73eb7eb6beec78f37ccd250049ffc7e0988bab331e06c2bd7dab9e20d70
 
 name:           open-dofus-db
 version:        0.1.0.0
@@ -33,14 +33,20 @@ library
       OpenDofus.Database.Game.Breed
       OpenDofus.Database.Game.Character
       OpenDofus.Database.Game.Effect
+      OpenDofus.Database.Game.InteractiveObject
       OpenDofus.Database.Game.Item
+      OpenDofus.Database.Game.Job
       OpenDofus.Database.Game.Map
+      OpenDofus.Database.Game.Skill
       OpenDofus.Database.Game.Spell
       OpenDofus.Database.SWF.Breed
       OpenDofus.Database.SWF.Effect
+      OpenDofus.Database.SWF.InteractiveObject
       OpenDofus.Database.SWF.Item
+      OpenDofus.Database.SWF.Job
       OpenDofus.Database.SWF.Map
       OpenDofus.Database.SWF.Reader
+      OpenDofus.Database.SWF.Skill
       OpenDofus.Database.SWF.Spell
       OpenDofus.Database.Types
   other-modules:

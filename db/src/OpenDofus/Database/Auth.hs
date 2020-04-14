@@ -22,9 +22,8 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
-{-# OPTIONS_GHC -Wno-missing-signatures     #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
 
 module OpenDofus.Database.Auth
   ( module X
@@ -36,12 +35,6 @@ module OpenDofus.Database.Auth
   , worldServer
   , authDb
   , authDbMigrations
-  , getWorldServers
-  , getAccountByName
-  , setAccountIsOnline
-  , generateAccountTicket
-  , getAccountRemainingSubscriptionInMilliseconds
-  , getAccountTicket
   ) where
 
 import           Data.Functor
@@ -119,54 +112,3 @@ initialMigration _ =
        (field "status" enumType notNull)
        (field "ip" (coerceType (varchar (Just 45))) notNull)
        (field "port" int notNull))
-
-getWorldServers :: AuthQuery [WorldServer]
-getWorldServers =
-  AuthQuery $ runSelectReturningList $ select $ all_ (authDb ^. worldServer)
-
-getAccountByName :: AccountName -> AuthQuery (Maybe (AccountT Identity))
-getAccountByName accName =
-  AuthQuery $
-  runSelectReturningOne $
-  select $ do
-    acc <- all_ (authDb ^. account)
-    guard_ (acc ^. accountName ==. val_ accName)
-    pure acc
-
-setAccountIsOnline :: AccountId -> AccountIsOnline -> AuthQuery ()
-setAccountIsOnline accId isOnline =
-  AuthQuery $ runUpdate $
-  update
-    (authDb ^. account)
-    (\acc -> (acc ^. accountIsOnline) <-. val_ isOnline)
-    (\acc -> (acc ^. accountId) ==. val_ accId)
-
-generateAccountTicket :: AccountId -> AuthQuery AccountTicket
-generateAccountTicket accId = AuthQuery $ do
-  ticketId <- liftIO $ AccountTicketId <$> nextRandom
-  currentTime <- liftIO $ AccountTicketCreationDate <$> getCurrentTime
-  let ticket = (AccountTicket ticketId (AccountPK accId) currentTime)
-  runInsert $
-    insert (authDb ^. accountTicket) $
-    insertValues [ticket]
-  pure ticket
-
-getAccountRemainingSubscriptionInMilliseconds ::
-     MonadIO m
-  => AccountSubscriptionExpirationDate
-  -> m AccountRemainingSubscriptionInMilliseconds
-getAccountRemainingSubscriptionInMilliseconds expiration = do
-  now <- getCurrentTime
-  let remainingSeconds =
-        diffUTCTime (unAccountSubscriptionExpirationDate $ expiration) now
-  pure $
-    AccountRemainingSubscriptionInMilliseconds $ round $ remainingSeconds * 1000
-
-getAccountTicket :: AccountTicketId -> AuthQuery (Maybe AccountTicket)
-getAccountTicket i =
-  AuthQuery $
-  runSelectReturningOne $
-  select $ do
-    tick <- all_ (authDb ^. accountTicket)
-    guard_ (tick ^. accountTicketId ==. val_ i)
-    pure tick

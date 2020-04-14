@@ -23,12 +23,9 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImpredicativeTypes         #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE TypeSynonymInstances       #-}
-
-{-# OPTIONS_GHC -Wno-missing-signatures     #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
 
 module OpenDofus.Database.Game.Map where
 
@@ -37,17 +34,17 @@ import           Database.Beam.Backend
 import           Database.Beam.Migrate
 import           Database.Beam.Postgres
 import           Database.Beam.Postgres.Syntax
-import           OpenDofus.Prelude             hiding (Map)
+import           OpenDofus.Prelude       hiding ( Map )
 
 newtype CellId =
   CellId
-    { unCellId :: Int
+    { unCellId :: Word32
     }
   deriving newtype (Show, Ord, Eq, Num, Real, Enum, Integral)
 
 newtype MapId =
   MapId
-    { unMapId :: Int
+    { unMapId :: Word32
     }
   deriving newtype ( Show
                    , Ord
@@ -62,7 +59,7 @@ newtype MapId =
 
 newtype MapSuperAreaId =
   MapSuperAreaId
-    { unMapSuperAreaId :: Int
+    { unMapSuperAreaId :: Word32
     }
   deriving newtype ( Show
                    , Ord
@@ -77,7 +74,7 @@ newtype MapSuperAreaId =
 
 newtype MapAreaId =
   MapAreaId
-    { unMapAreaId :: Int
+    { unMapAreaId :: Word32
     }
   deriving newtype ( Show
                    , Ord
@@ -92,7 +89,7 @@ newtype MapAreaId =
 
 newtype MapSubAreaId =
   MapSubAreaId
-    { unMapSubAreaId :: Int
+    { unMapSubAreaId :: Word32
     }
   deriving newtype ( Show
                    , Ord
@@ -122,9 +119,7 @@ deriving instance Show MapSuperArea
 type MapSuperAreaPK = PrimaryKey MapSuperAreaT Identity
 deriving instance Show MapSuperAreaPK
 
-MapSuperArea
-  (LensFor superAreaId)
-  (LensFor superAreaName) = tableLenses
+MapSuperArea (LensFor superAreaId) (LensFor superAreaName) = tableLenses
 
 data MapAreaT f =
   MapArea
@@ -145,10 +140,8 @@ deriving instance Show MapAreaPK
 type MapAreaPK = PrimaryKey MapAreaT Identity
 deriving instance Show MapArea
 
-MapArea
-  (LensFor areaId)
-  (LensFor areaName)
-  (MapSuperAreaPK (LensFor areaSuperArea)) = tableLenses
+MapArea (LensFor areaId) (LensFor areaName) (MapSuperAreaPK (LensFor areaSuperArea))
+  = tableLenses
 
 data MapSubAreaT f =
   MapSubArea
@@ -169,11 +162,7 @@ deriving instance Show MapSubArea
 type MapSubAreaPK = PrimaryKey MapSubAreaT Identity
 deriving instance Show MapSubAreaPK
 
-MapSubArea
-  (LensFor subAreaId)
-  (LensFor subAreaName)
-  (MapAreaPK (LensFor subAreaArea))
-  (LensFor subAreaMusics)
+MapSubArea (LensFor subAreaId) (LensFor subAreaName) (MapAreaPK (LensFor subAreaArea)) (LensFor subAreaMusics)
   = tableLenses
 
 data MapSubAreaNeighbourT f =
@@ -189,8 +178,9 @@ instance Table MapSubAreaNeighbourT where
                                  !(PrimaryKey MapSubAreaT f)
              deriving (Generic, Beamable)
   primaryKey =
-    MapSubAreaNeighbourId <$> _mapSubAreaNeighbourOrigin <*>
-    _mapSubAreaNeighbourDestination
+    MapSubAreaNeighbourId
+      <$> _mapSubAreaNeighbourOrigin
+      <*> _mapSubAreaNeighbourDestination
 
 type MapSubAreaNeighbour = MapSubAreaNeighbourT Identity
 deriving instance Show MapSubAreaNeighbour
@@ -198,9 +188,7 @@ deriving instance Show MapSubAreaNeighbour
 type MapSubAreaNeighbourId = PrimaryKey MapSubAreaNeighbourT Identity
 deriving instance Show MapSubAreaNeighbourId
 
-MapSubAreaNeighbour
-  (MapSubAreaPK (LensFor subAreaNeighbourOriginSubAreaId))
-  (MapSubAreaPK (LensFor subAreaNeighbourDestinationSubAreaId))
+MapSubAreaNeighbour (MapSubAreaPK (LensFor subAreaNeighbourOriginSubAreaId)) (MapSubAreaPK (LensFor subAreaNeighbourDestinationSubAreaId))
   = tableLenses
 
 data MapT f =
@@ -232,18 +220,5 @@ deriving instance Show Map
 type MapPK = PrimaryKey MapT Identity
 deriving instance Show MapPK
 
-Map
-  (LensFor mapId)
-  (LensFor mapDate)
-  (MapSubAreaPK (LensFor mapSubAreaId))
-  (LensFor mapX)
-  (LensFor mapY)
-  (LensFor mapWidth)
-  (LensFor mapHeight)
-  (LensFor mapBackgroundNum)
-  (LensFor mapAmbianceId)
-  (LensFor mapIsOutdoor)
-  (LensFor mapCapabilities)
-  (LensFor mapData)
-  (LensFor mapDataKey)
+Map (LensFor mapId) (LensFor mapDate) (MapSubAreaPK (LensFor mapSubAreaId)) (LensFor mapX) (LensFor mapY) (LensFor mapWidth) (LensFor mapHeight) (LensFor mapBackgroundNum) (LensFor mapAmbianceId) (LensFor mapIsOutdoor) (LensFor mapCapabilities) (LensFor mapData) (LensFor mapDataKey)
   = tableLenses

@@ -1,4 +1,4 @@
-resolver: lts-15.4
+resolver: lts-15.8
 
 allow-newer: true
 
@@ -6,7 +6,7 @@ system-ghc: true
 
 flags:
   sockets:
-    debug: True
+    verbose-errors: true
 
 packages:
 - core
@@ -16,6 +16,10 @@ packages:
 - lang-downloader
 
 extra-deps:
+        - git: https://github.com/andrewthad/posix-api
+          commit: b63fdfb9339135f21fd71f96f50fa040a9b46183
+        - git: https://github.com/andrewthad/sockets
+          commit: a1e116cbecb8bd32fdcba3d34239691331488e62
         - git: https://github.com/nerded1337/asil
           commit: 751e5b830cc34d189b7b5049c6d85c5445c8e360
         - git: https://github.com/nerded1337/beam
@@ -27,13 +31,10 @@ extra-deps:
         - dependent-map-0.3@sha256:dc745864d5116bbd59ad29100faec74c79e681d35808547023619544c0e9f9b7,1574
         - dependent-sum-0.6.2.0@sha256:bff37c85b38e768b942f9d81c2465b63a96076f1ba006e35612aa357770807b6,1856
         - download-0.3.2.7@sha256:eb22654544f55a76a36be0215311fda9d64da53008d6db98a6aa6da734c89508,2599
-        - sockets-0.5.0.0@sha256:ed8cd0a9388819e388b157f754c5c1b6f11c088bbf2bd9b86b5c0ec9410526ca,22323
         - constraints-extras-0.3.0.2@sha256:bf6884be65958e9188ae3c9e5547abfd6d201df021bff8a4704c2c4fe1e1ae5b,1784
         - error-codes-0.1.0.1@sha256:3a36d70c6c306a206eb04a5ee24f2f9d0e81ad08f44965985785e7383deb6bc1,820
-        - posix-api-0.3.3.0@sha256:c75148cfa2695b1c948cb796f17b77d40839f91b3da76ea1be55cf9cbb92083f,4526
         - paths-0.2.0.0@sha256:b550399f0d1181a00221931255c48d72d6eaa8301056afcc9f96288c71aab664,2629
         - aeson-extra-0.4.1.3@sha256:e92dee5b770a4026da69fc127360e6a2b32c834da278db4e7642647d1aabbf7d,2960
-        - vinyl-0.12.1@sha256:03f5e246fae2434250987bbfe708015dc6e23f60c20739c34738acde1383b96c,3921
 
 nix:
         enable: true

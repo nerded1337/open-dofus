@@ -19,7 +19,6 @@
 
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 
 module OpenDofus.Auth.Network.Message
@@ -53,12 +52,12 @@ instance ToNetwork WorldServerInfo where
   {-# INLINE toNetwork #-}
   toNetwork (WorldServerInfo (WorldServer i c s _ _)) =
     "|" <>
-    stringUtf8 (show i) <>
+    intDec (unWorldId i) <>
     ";" <>
-    stringUtf8 (show $ fromEnum s) <> ";" <> stringUtf8 (show $ fromEnum c) <> ";" <> canLogin s
+    intDec (fromEnum s) <> ";" <> intDec (fromEnum c) <> ";" <> canLogin s
     where
       canLogin WorldStatusOnline = "1"
-      canLogin _                 = "0"
+      canLogin _ = "0"
 
 newtype WorldServerEndpointInfo =
   WorldServerEndpointInfo

@@ -19,22 +19,21 @@
 
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE DerivingVia                #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImpredicativeTypes         #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE TypeSynonymInstances       #-}
-
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 
 module OpenDofus.Database.Game.Character where
 
 import           Data.Binary
 import           Database.Beam
+import           Database.Beam.Backend
+import           Database.Beam.Postgres
+import           Database.Beam.Postgres.Syntax
 import           OpenDofus.Database.Auth.Account
 import           OpenDofus.Database.Game.Breed
 import           OpenDofus.Database.Game.Effect
@@ -45,37 +44,84 @@ newtype CharacterId =
   CharacterId
     { unCharacterId :: Word64
     }
-  deriving newtype (Show, Eq, Ord, Num, Real, Enum, Integral)
+  deriving newtype ( Show
+                   , Eq
+                   , Ord
+                   , Num
+                   , Real
+                   , Enum
+                   , Integral
+                   , FromBackendRow Postgres
+                   , HasSqlEqualityCheck Postgres
+                   , HasSqlValueSyntax PgValueSyntax
+                   )
 
 newtype CharacterName =
   CharacterName
     { unCharacterName :: Text
     }
-  deriving newtype (Show, Eq, Ord, IsString)
+  deriving newtype ( Show
+                   , Eq
+                   , Ord
+                   , IsString
+                   , FromBackendRow Postgres
+                   , HasSqlEqualityCheck Postgres
+                   , HasSqlValueSyntax PgValueSyntax
+                   )
 
 newtype CharacterColor =
   CharacterColor
     { unCharacterColor :: Int
     }
-  deriving newtype (Show, Eq, Ord, Num, Real, Enum, Integral)
+  deriving newtype ( Show
+                   , Eq
+                   , Ord
+                   , Num
+                   , Real
+                   , Enum
+                   , Integral
+                   , FromBackendRow Postgres
+                   , HasSqlEqualityCheck Postgres
+                   , HasSqlValueSyntax PgValueSyntax
+                   )
 
 newtype GfxId =
   GfxId
-    { unGfxId :: Word
+    { unGfxId :: Word32
     }
-  deriving newtype (Show, Eq, Ord, Num, Real, Enum, Integral)
+  deriving newtype (Show, Eq, Ord, Num, Real, Enum, Integral
+                   , FromBackendRow Postgres
+                   , HasSqlEqualityCheck Postgres
+                   , HasSqlValueSyntax PgValueSyntax
+                   )
 
 newtype GfxSize =
   GfxSize
-    { unSkinSize :: Word
+    { unSkinSize :: Word32
     }
-  deriving newtype (Show, Eq, Ord, Num, Real, Enum, Integral)
+  deriving newtype ( Show
+                   , Eq
+                   , Ord
+                   , Num
+                   , Real
+                   , Enum
+                   , Integral
+                   , FromBackendRow Postgres
+                   , HasSqlEqualityCheck Postgres
+                   , HasSqlValueSyntax PgValueSyntax
+                   )
 
 newtype CharacterSex =
   CharacterSex
     { unCharacterSex :: Bool
     }
-  deriving newtype (Show, Eq, Ord)
+  deriving newtype ( Show
+                   , Eq
+                   , Ord
+                   , FromBackendRow Postgres
+                   , HasSqlEqualityCheck Postgres
+                   , HasSqlValueSyntax PgValueSyntax
+                   )
 
 data CharacterCaracteristicSource = Base
     | Gift
@@ -84,27 +130,57 @@ data CharacterCaracteristicSource = Base
 
 newtype CharacterCaracteristicValue =
   CharacterCaracteristicValue
-    { unCaracteristicValue :: Word
+    { unCaracteristicValue :: Word32
     }
   deriving newtype (Show, Eq, Ord, Num, Real, Enum, Integral)
 
 newtype CharacterLevel =
   CharacterLevel
-    { unCharacterLevel :: Word
+    { unCharacterLevel :: Word32
     }
-  deriving newtype (Show, Eq, Ord, Num, Real, Enum, Integral)
+  deriving newtype ( Show
+                   , Eq
+                   , Ord
+                   , Num
+                   , Real
+                   , Enum
+                   , Integral
+                   , FromBackendRow Postgres
+                   , HasSqlEqualityCheck Postgres
+                   , HasSqlValueSyntax PgValueSyntax
+                   )
 
 newtype CharacterMaxLevel =
   CharacterMaxLevel
-    { unCharacterMaxLevel :: Word
+    { unCharacterMaxLevel :: Word32
     }
-  deriving newtype (Show, Eq, Ord, Num, Real, Enum, Integral)
+  deriving newtype ( Show
+                   , Eq
+                   , Ord
+                   , Num
+                   , Real
+                   , Enum
+                   , Integral
+                   , FromBackendRow Postgres
+                   , HasSqlEqualityCheck Postgres
+                   , HasSqlValueSyntax PgValueSyntax
+                   )
 
 newtype CharacterExperience =
   CharacterExperience
-    { unCharacterExperience :: Word
+    { unCharacterExperience :: Word32
     }
-  deriving newtype (Show, Eq, Ord, Num, Real, Enum, Integral)
+  deriving newtype ( Show
+                   , Eq
+                   , Ord
+                   , Num
+                   , Real
+                   , Enum
+                   , Integral
+                   , FromBackendRow Postgres
+                   , HasSqlEqualityCheck Postgres
+                   , HasSqlValueSyntax PgValueSyntax
+                   )
 
 data CharacterT f = Character
     { _characterId         :: !(C f CharacterId)
@@ -191,9 +267,9 @@ CharacterLook
   (LensFor characterLookGfxId)
   (LensFor characterLookGfxSize)
   (LensFor characterLookSex)
-  (LensFor characterFirstColor)
-  (LensFor characterSecondColor)
-  (LensFor characterThirdColor)
+  (LensFor characterLookFirstColor)
+  (LensFor characterLookSecondColor)
+  (LensFor characterLookThirdColor)
   = tableLenses
 
 data CharacterCaracteristicT f = CharacterCaracteristic
@@ -207,11 +283,12 @@ data CharacterCaracteristicT f = CharacterCaracteristic
 instance Table CharacterCaracteristicT where
   data PrimaryKey CharacterCaracteristicT
        f = CharacterCharacteristicPK !(PrimaryKey CharacterT f)
-                                     !(PrimaryKey EffectT f)
+                                     !(PrimaryKey EffectT f) !(C f CharacterCaracteristicSource)
              deriving (Generic, Beamable)
   primaryKey =
     CharacterCharacteristicPK <$> _characterCaracteristicCharacterId <*>
-    _characterCaracteristicEffectId
+    _characterCaracteristicEffectId <*>
+    _characterCaracteristicSource
 
 type CharacterCaracteristic = CharacterCaracteristicT Identity
 deriving instance Show CharacterCaracteristic

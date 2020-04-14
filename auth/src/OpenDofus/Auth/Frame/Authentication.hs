@@ -77,14 +77,17 @@ handleAuthResult (Right acc) = do
   pure $ worldSelectionHandler worlds acc <> logoutHandler acc
 handleAuthResult (Left reason) = do
   sendMessage $ AuthFailure reason
-  pure MessageHandlerDisconnect
+  pure $ MessageHandlerDisconnect mempty
 
 loginAccount ::
-     Salt -> BS.ByteString -> Account -> AuthQuery (Either AuthFailureReason Account)
+     Salt
+  -> BS.ByteString
+  -> Account
+  -> AuthQuery (Either AuthFailureReason Account)
 loginAccount salt encryptedPassword acc
   | passwordIsValid && banned = pure $ Left AuthFailureBanned
-  | passwordIsValid && offline = setIsOnline True $> Right acc
-  | passwordIsValid && not offline =
+  | passwordIsValid && not alreadyOnline = setIsOnline True $> Right acc
+  | passwordIsValid && alreadyOnline =
     setIsOnline False $> Left AuthFailureAlreadyConnected
   | otherwise = pure $ Left AuthFailureInvalidCredentials
   where
@@ -98,8 +101,8 @@ loginAccount salt encryptedPassword acc
       encryptedPassword
     banned :: Bool
     banned = unAccountIsBanned (acc ^. accountIsBanned) == True
-    offline :: Bool
-    offline = unAccountIsOnline (acc ^. accountIsOnline) == False
+    alreadyOnline :: Bool
+    alreadyOnline = unAccountIsOnline (acc ^. accountIsOnline)
 
 authenticationHandler :: Salt -> AuthClientHandler
 authenticationHandler salt = MessageHandlerCont $ go =<< asks (view handlerInputMessage)
@@ -118,4 +121,4 @@ authenticationHandler salt = MessageHandlerCont $ go =<< asks (view handlerInput
               (loginAccount salt providedEncryptedPassword)
               acc
     go _ = do
-      pure MessageHandlerDisconnect
+      pure $ MessageHandlerDisconnect mempty

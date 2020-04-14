@@ -49,7 +49,7 @@ dependencies:
 - lens
 - rio
 - rio-prettyprint
-- vinyl
+- dhall
 
 default-extensions:
   - NoImplicitPrelude 

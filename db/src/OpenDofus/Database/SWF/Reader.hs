@@ -29,24 +29,24 @@ module OpenDofus.Database.SWF.Reader
   , unsafeBool
   , unsafeArray
   , safeInt
-  ) where
+  )
+where
 
 import           ByteCode
-import qualified Data.Aeson                   as A
+import qualified Data.Aeson                    as A
 import           Data.Binary.Get
-import qualified Data.ByteString.Lazy         as BS
-import qualified Data.HashMap.Strict          as H
+import qualified Data.ByteString.Lazy          as BS
+import qualified Data.HashMap.Strict           as H
 import           Data.List
 import           Data.Scientific
-import qualified Data.Sequence                as S
-import qualified Data.Text                    as T
-import qualified Data.Text.Encoding           as T
-import qualified Data.Vector                  as V
+import qualified Data.Sequence                 as S
+import qualified Data.Text                     as T
+import qualified Data.Text.Encoding            as T
+import qualified Data.Vector                   as V
 import           Data.Word
 import           Parser
-
 import           OpenDofus.Data.Constructible
-import           OpenDofus.Prelude            hiding (evaluate)
+import           OpenDofus.Prelude       hiding ( evaluate )
 import           RIO.State
 
 loadData :: FilePath -> (H.HashMap T.Text A.Value -> IO b) -> IO b
@@ -57,12 +57,12 @@ loadData filePath callback = do
 loadFromFile :: String -> IO A.Value
 loadFromFile file = do
   codes <- getAbcFrom file
-  tbl <- do
-    let code' = traverse_ evaluate codes
-    (_, e@(Evaluation _ tbl _ _ _)) <- runStateT code' (Evaluation mempty mempty mempty (const $ "IMPOSSIBLE") (const $ pure ()))
-    (t, _) <- runStateT (traverse toAeson tbl) e
-    pure $ A.Object t
-  pure $ tbl
+  let code' = traverse_ evaluate codes
+  (_, e@(Evaluation _ tbl _ _ _)) <- runStateT
+    code'
+    (Evaluation mempty mempty mempty (const "IMPOSSIBLE") (const $ pure ()))
+  (t, _) <- runStateT (traverse toAeson tbl) e
+  pure $ A.Object t
 
 getAbcFrom :: String -> IO (V.Vector ActionExpression)
 getAbcFrom s = do
@@ -70,7 +70,8 @@ getAbcFrom s = do
   pure $ foldMap getTagInstructions tags
 
 getTagInstructions :: Tag -> V.Vector ActionExpression
-getTagInstructions (Tag_Opaque TagKind_DoAction _ content) = runGet getInstructions content
+getTagInstructions (Tag_Opaque TagKind_DoAction _ content) =
+  runGet getInstructions content
 getTagInstructions _ = mempty
 
 getInstructions :: Get (V.Vector ActionExpression)
@@ -90,23 +91,24 @@ data Evaluation =
     , _toMember   :: A.Value -> StateT Evaluation IO ()
     }
 
-evaluate ::
-     ActionExpression
-  -> StateT Evaluation IO ()
-evaluate !(Actions a)       = traverse_ evaluate a
-evaluate !(ConstantPool p') = do
+evaluate :: ActionExpression -> StateT Evaluation IO ()
+evaluate (Actions      a ) = traverse_ evaluate a
+evaluate (ConstantPool p') = do
   p <- gets pool
   let p'' = p <> p'
-  modify (\e -> e { pool = p'', getConstant = \i -> V.unsafeIndex p'' (V.length p + i) })
-evaluate !(Push p)          = modify (\e -> e { stack = StackVal p S.<| (stack e)})
-evaluate !(Operation operation) = do
-  !(Evaluation p tbl s idx toMember) <- get
+  modify
+    (\e ->
+      e { pool = p'', getConstant = \i -> V.unsafeIndex p'' (V.length p + i) }
+    )
+evaluate (Push p) = modify (\e -> e { stack = StackVal p S.<| stack e })
+evaluate (Operation operation) = do
+  (Evaluation p tbl s idx toMember) <- get
   let getName push = case push of
-        !(PushConst8 i)  -> idx $ fromIntegral i
-        !(PushConst16 i) -> idx $ fromIntegral i
-        !(PushString n)  -> n
-        !(PushDouble n)  -> T.pack $ show n
-        x                -> error $ "Unhandled: " <> show x
+        (PushConst8  i) -> idx $ fromIntegral i
+        (PushConst16 i) -> idx $ fromIntegral i
+        (PushString  n) -> n
+        (PushDouble  n) -> T.pack $ show n
+        x               -> error $ "Unhandled: " <> show x
   case (operation, s) of
     (ActionSetVariable, value :- (StackVal v :- xs)) -> do
       let name = getName v
@@ -115,74 +117,134 @@ evaluate !(Operation operation) = do
 
     (ActionGetVariable, (StackVal v :- xs)) -> do
       let varName = getName v
-          object = fromMaybe (StackObj $ A.Object mempty) $ H.lookup varName tbl
-      put (Evaluation p tbl (object :- xs) idx $ \x -> do
-              modify (\e -> e { table = H.insert varName (StackObj x) (table e) }))
+          object =
+            fromMaybe (StackObj $ A.Object mempty) $ H.lookup varName tbl
+      put
+        (Evaluation p tbl (object :- xs) idx $ \x ->
+          modify (\e -> e { table = H.insert varName (StackObj x) (table e) })
+        )
 
-    (ActionGetMember, (StackVal (PushConst8 i)) :- (StackObj (A.Object o) :- xs)) -> do
-      let name = idx $ fromIntegral i
-          o' = StackObj $ fromMaybe (A.Object mempty) $ H.lookup name o
-      put (Evaluation p tbl (o' :- xs) idx $ \x -> do
-              toMember (A.Object $ H.insert name x o))
+    (ActionGetMember, (StackVal (PushConst8 i)) :- (StackObj (A.Object o) :- xs))
+      -> do
+        let name = idx $ fromIntegral i
+            o'   = StackObj $ fromMaybe (A.Object mempty) $ H.lookup name o
+        put
+          ( Evaluation p tbl (o' :- xs) idx
+          $ \x -> toMember (A.Object $ H.insert name x o)
+          )
 
-    (ActionCallMethod, StackVal (PushConst8 _) :- (StackObj _ :- (StackVal (PushInt params) :- xs))) -> do
-      put (Evaluation p tbl (StackVal (PushInt 0) :- S.drop (fromIntegral params) xs) idx toMember)
+    (ActionCallMethod, StackVal (PushConst8 _) :- (StackObj _ :- (StackVal (PushInt params) :- xs)))
+      -> put
+        (Evaluation p
+                    tbl
+                    (StackVal (PushInt 0) :- S.drop (fromIntegral params) xs)
+                    idx
+                    toMember
+        )
 
-    (ActionCallMethod, StackVal (PushConst8 _) :- (StackObj _ :- (StackVal (PushDouble params) :- xs))) -> do
-      put (Evaluation p tbl (StackVal (PushInt 0) :- S.drop (fromIntegral @Int $ round params) xs) idx toMember)
+    (ActionCallMethod, StackVal (PushConst8 _) :- (StackObj _ :- (StackVal (PushDouble params) :- xs)))
+      -> put
+        (Evaluation
+          p
+          tbl
+          (StackVal (PushInt 0) :- S.drop (fromIntegral @Int $ round params) xs)
+          idx
+          toMember
+        )
 
-    (ActionCallFunction, (StackVal (PushString _)) :- (StackVal (PushInt params) :- xs@(value :- _))) -> do
-      value' <- toAeson value
-      put (Evaluation p tbl (StackObj value' :- S.drop (fromIntegral params) xs) idx toMember)
+    (ActionCallFunction, (StackVal (PushString _)) :- (StackVal (PushInt params) :- xs@(value :- _)))
+      -> do
+        value' <- toAeson value
+        put
+          (Evaluation p
+                      tbl
+                      (StackObj value' :- S.drop (fromIntegral params) xs)
+                      idx
+                      toMember
+          )
 
-    (ActionCallFunction, (StackVal (PushString _)) :- (StackVal (PushDouble params) :- xs@(value :- _))) -> do
-      value' <- toAeson value
-      put (Evaluation p tbl (StackObj value' :- S.drop (fromIntegral @Int $ round params) xs) idx toMember)
+    (ActionCallFunction, (StackVal (PushString _)) :- (StackVal (PushDouble params) :- xs@(value :- _)))
+      -> do
+        value' <- toAeson value
+        put
+          (Evaluation
+            p
+            tbl
+            (StackObj value' :- S.drop (fromIntegral @Int $ round params) xs)
+            idx
+            toMember
+          )
 
-    (ActionPop, _ :- xs) -> do
-      put (Evaluation p tbl xs idx toMember)
+    (ActionPop      , _ :- xs) -> put (Evaluation p tbl xs idx toMember)
 
     (ActionNewObject, StackVal name :- (StackVal (PushInt params) :- xs)) -> do
-      let name' = getName name
+      let name'  = getName name
           object = StackObj $ case name' of
             "Object" -> A.Object mempty
-            "Array"  -> A.Array mempty
+            "Array"  -> A.Object mempty -- can access random index, same as object
             x        -> error $ "Unhandled: " <> show x
-      put (Evaluation p tbl (object :- (S.drop (fromIntegral params) xs)) idx toMember)
+      put
+        (Evaluation p
+                    tbl
+                    (object :- S.drop (fromIntegral params) xs)
+                    idx
+                    toMember
+        )
 
-    (ActionNewObject, StackVal name :- (StackVal (PushDouble params) :- xs)) -> do
-      let name' = getName name
-          object = StackObj $ case name' of
-            "Object" -> A.Object mempty
-            "Array"  -> A.Array mempty
-            x        -> error $ "Unhandled: " <> show x
-      put (Evaluation p tbl (object :- (S.drop (fromIntegral @Int $ round params) xs)) idx toMember)
+    (ActionNewObject, StackVal name :- (StackVal (PushDouble params) :- xs)) ->
+      do
+        let name'  = getName name
+            object = StackObj $ case name' of
+              "Object" -> A.Object mempty
+              "Array"  -> A.Object mempty
+              x        -> error $ "Unhandled: " <> show x
+        put
+          (Evaluation p
+                      tbl
+                      (object :- S.drop (fromIntegral @Int $ round params) xs)
+                      idx
+                      toMember
+          )
 
     (ActionInitArray, StackVal (PushInt nbOfElem) :- xs) -> do
       let (params, rest) = S.splitAt (fromIntegral nbOfElem) xs
       values <- traverse toAeson $ toList params
-      put (Evaluation p tbl (StackObj (A.Array $ V.fromList values) :- rest) idx toMember)
+      put
+        (Evaluation p
+                    tbl
+                    (StackObj (A.Array $ V.fromList values) :- rest)
+                    idx
+                    toMember
+        )
 
     (ActionInitArray, StackVal (PushDouble nbOfElem) :- xs) -> do
       let (params, rest) = S.splitAt (fromIntegral @Int $ round nbOfElem) xs
       values <- traverse toAeson $ toList params
-      put (Evaluation p tbl (StackObj (A.Array $ V.fromList values) :- rest) idx toMember)
+      put
+        (Evaluation p
+                    tbl
+                    (StackObj (A.Array $ V.fromList values) :- rest)
+                    idx
+                    toMember
+        )
 
     (ActionInitObject, StackVal (PushInt nbOfElem) :- xs) -> do
       let popArgument = do
             (Evaluation p' tbl' xs' idx' v') <- get
             case xs' of
               (val :- (StackVal varName :- xs'')) -> do
-                let name  = getName varName
+                let name = getName varName
                 val' <- toAeson val
                 put (Evaluation p' tbl' xs'' idx' v')
-                pure $! (name, val')
-              _ ->
-                error $ "Unhandled: " <> show xs'
+                pure (name, val')
+              _ -> error $ "Unhandled: " <> show xs'
       put (Evaluation p tbl xs idx toMember)
       elems <- V.replicateM (fromIntegral nbOfElem) popArgument
-      e <- get
-      let obj = StackObj $ A.Object $ V.foldr' (\(name, value) m -> H.insert name value m) H.empty elems
+      e     <- get
+      let obj = StackObj $ A.Object $ V.foldr'
+            (\(name, value) m -> H.insert name value m)
+            H.empty
+            elems
       put $! e { stack = obj :- stack e }
 
     (ActionInitObject, StackVal (PushDouble nbOfElem) :- xs) -> do
@@ -190,67 +252,66 @@ evaluate !(Operation operation) = do
             (Evaluation p' tbl' xs' idx' v') <- get
             case xs' of
               (val :- (StackVal varName :- xs'')) -> do
-                let name  = getName varName
+                let name = getName varName
                 val' <- toAeson val
                 put (Evaluation p' tbl' xs'' idx' v')
-                pure $! (name, val')
-              _ ->
-                error $ "Unhandled: " <> show xs'
+                pure (name, val')
+              _ -> error $ "Unhandled: " <> show xs'
       put (Evaluation p tbl xs idx toMember)
       elems <- V.replicateM (fromIntegral @Int $ round nbOfElem) popArgument
-      e <- get
-      let obj = StackObj $ A.Object $ V.foldr' (\(name, value) m -> H.insert name value m) H.empty elems
+      e     <- get
+      let obj = StackObj $ A.Object $ V.foldr'
+            (\(name, value) m -> H.insert name value m)
+            H.empty
+            elems
       put $! e { stack = obj :- stack e }
 
-    (ActionSetMember, member :- (StackVal name :- (StackObj object :- xs))) -> do
-      member' <- toAeson member
-      let object' = case (name, object) of
+    (ActionSetMember, member :- (StackVal name :- (StackObj object :- xs))) ->
+      do
+        member' <- toAeson member
+        let
+          object' = case (name, object) of
             (PushConst8 i, A.Object o) ->
               A.Object $ H.insert (idx $ fromIntegral i) member' o
             (PushConst16 i, A.Object o) ->
               A.Object $ H.insert (idx $ fromIntegral i) member' o
-            (PushString n, A.Object o) ->
-              A.Object $ H.insert n member' o
-            (PushInt _, A.Array a)  ->
-              A.Array $ V.snoc a member'
+            (PushString n, A.Object o) -> A.Object $ H.insert n member' o
+            (PushInt    _, A.Array a ) -> A.Array $ V.snoc a member'
             (PushInt n, A.Object o) ->
               A.Object $ H.insert (T.pack $ show n) member' o
-            (PushDouble _, A.Array a)  ->
-              A.Array $ V.snoc a member'
+            (PushDouble _, A.Array a) -> A.Array $ V.snoc a member'
             (PushDouble n, A.Object o) ->
               A.Object $ H.insert (T.pack $ show n) member' o
-            x ->
-              error $ "Unhandled: " <> show x
-      toMember object'
-      (Evaluation p' tbl' _ _ _) <- get
-      put (Evaluation p' tbl' xs idx (const $ pure ()))
+            x -> error $ "Unhandled: " <> show x
+        toMember object'
+        (Evaluation p' tbl' _ _ _) <- get
+        put (Evaluation p' tbl' xs idx (const $ pure ()))
 
-    (ActionToString, _) -> do
-      pure ()
+    (ActionToString, _) -> pure ()
 
-    (ActionToNumber, _) -> do
-      pure ()
+    (ActionToNumber, _) -> pure ()
 
-    (x, _) -> do
-      error $ "UNKNOWN ACTION: " <> show x
+    (x             , _) -> error $ "UNKNOWN ACTION: " <> show x
 
 evaluate x = error $ "Unhandled action: " <> show x
 
 pushToAeson :: PushExpression -> StateT Evaluation IO A.Value
 pushToAeson PushNull       = pure A.Null
 pushToAeson PushUndefined  = pure A.Null
-pushToAeson (PushInt i)    = pure $ A.Number (fromIntegral i)
+pushToAeson (PushInt    i) = pure $ A.Number (fromIntegral i)
 pushToAeson (PushString s) = pure $ A.String s
 pushToAeson (PushDouble d) = pure $ A.Number (realToFrac d)
-pushToAeson (PushFloat f)  = pure $ A.Number (realToFrac f)
-pushToAeson (PushBool b)   = pure $ A.Bool b
-pushToAeson (PushConst16 x) = A.String <$> (gets getConstant <*> pure (fromIntegral x))
-pushToAeson (PushConst8 x) = A.String <$> (gets getConstant <*> pure (fromIntegral x))
+pushToAeson (PushFloat  f) = pure $ A.Number (realToFrac f)
+pushToAeson (PushBool   b) = pure $ A.Bool b
+pushToAeson (PushConst16 x) =
+  A.String <$> (gets getConstant <*> pure (fromIntegral x))
+pushToAeson (PushConst8 x) =
+  A.String <$> (gets getConstant <*> pure (fromIntegral x))
 pushToAeson (PushRegister _) = error "Unhandled register push"
 
 toAeson :: StackExpr -> StateT Evaluation IO A.Value
-toAeson !(StackVal v) = pushToAeson v
-toAeson !(StackObj o) = pure $ o
+toAeson (StackVal v) = pushToAeson v
+toAeson (StackObj o) = pure o
 
 unsafeArray :: String -> A.Value -> V.Vector A.Value
 unsafeArray _ (A.Array x) = x
@@ -262,15 +323,16 @@ unsafeString s x = error $ "Unhandled string type: " <> s <> ", " <> show x
 
 unsafeInt :: String -> A.Value -> Int
 unsafeInt _ (A.Number x) = either (error "") id $ floatingOrInteger @Double x
-unsafeInt s x = error $ "Unhandled int type: " <> s <> ", " <> show x
+unsafeInt s x            = error $ "Unhandled int type: " <> s <> ", " <> show x
 
 unsafeBool :: String -> A.Value -> Bool
 unsafeBool _ (A.Bool x) = x
-unsafeBool s x = error $ "Unhandled bool type: " <> s <> ", " <> show x
+unsafeBool s x          = error $ "Unhandled bool type: " <> s <> ", " <> show x
 
 safeInt :: A.Value -> Maybe Int
-safeInt (A.Number x) = Just $ either (error "Unhandled value") id $ floatingOrInteger @Double x
-safeInt _            = Nothing
+safeInt (A.Number x) =
+  Just $ either (error "Unhandled value") id $ floatingOrInteger @Double x
+safeInt _ = Nothing
 
 isOpCodeValid :: Get Bool
 isOpCodeValid = do
@@ -279,65 +341,67 @@ isOpCodeValid = do
 
 getWhile :: Get Bool -> Get b -> Get (V.Vector b)
 getWhile f g = go mempty
-  where
-    go !k = do
-      continue <- f
-      case continue of
-        False -> pure k
-        True  -> do
-          x <- g
-          go (V.snoc k x)
+ where
+  go !k = do
+    continue <- f
+    case continue of
+      False -> pure k
+      True  -> do
+        x <- g
+        go (V.snoc k x)
 
 decodeInstruction :: Get ActionExpression
 decodeInstruction = getHeader getBody
-  where
-    loop f !offset = do
-      offset' <- bytesRead
-      if offset' < offset
-        then do
-          v <- f
-          (V.cons v) <$> loop f offset
-        else pure mempty
+ where
+  loop f !offset = do
+    offset' <- bytesRead
+    if offset' < offset
+      then do
+        v <- f
+        V.cons v <$> loop f offset
+      else pure mempty
 
-    getHeader !next = do
-      code <- getWord8
-      let action = inverseProjection instructionCode code
-      if code < 0x80
-        then next (action, 0)
-        else do
-          len <- getWord16le
-          offset <- bytesRead
-          Actions <$> loop (next (action, fromIntegral len)) (offset + fromIntegral len)
+  getHeader !next = do
+    code <- getWord8
+    let action = inverseProjection instructionCode code
+    if code < 0x80
+      then next (action, 0)
+      else do
+        len    <- getWord16le
+        offset <- bytesRead
+        Actions <$> loop (next (action, fromIntegral len))
+                         (offset + fromIntegral len)
 
-    getBody (Just ActionConstantPool, _) = do
-      count <- getWord16le
-      constantPool <- V.replicateM (fromIntegral count) decodeString
-      pure $! ConstantPool constantPool
+  getBody (Just ActionConstantPool, _) = do
+    count        <- getWord16le
+    constantPool <- V.replicateM (fromIntegral count) decodeString
+    pure $! ConstantPool constantPool
 
-    getBody (Just ActionPush, _) = do
-      code <- getWord8
-      let pushType = fromMaybe (error $ "invalid push type: " <> show code)
-                     $ inverseProjection pushTypeCode code
-      action <- case pushType of
-        PushStringType     -> PushString <$> decodeString
-        PushFloatType      -> PushFloat <$> getFloatle
-        PushNullType       -> pure PushNull
-        PushUndefinedType  -> pure PushUndefined
-        PushRegisterType   -> PushRegister <$> getWord8
-        PushBooleanType    -> PushBool . (== 1) <$> getWord8
-        PushDoubleType     -> PushDouble <$> getDoublele
-        PushIntegerType    -> PushInt <$> getInt32le
-        PushConstant8Type  -> PushConst8 <$> getWord8
-        PushConstant16Type -> PushConst16 <$> getWord16le
-      pure $! Push action
+  getBody (Just ActionPush, _) = do
+    code <- getWord8
+    let pushType =
+          fromMaybe (error $ "invalid push type: " <> show code)
+            $ inverseProjection pushTypeCode code
+    action <- case pushType of
+      PushStringType     -> PushString <$> decodeString
+      PushFloatType      -> PushFloat <$> getFloatle
+      PushNullType       -> pure PushNull
+      PushUndefinedType  -> pure PushUndefined
+      PushRegisterType   -> PushRegister <$> getWord8
+      PushBooleanType    -> PushBool . (== 1) <$> getWord8
+      PushDoubleType     -> PushDouble <$> getDoublele
+      PushIntegerType    -> PushInt <$> getInt32le
+      PushConstant8Type  -> PushConst8 <$> getWord8
+      PushConstant16Type -> PushConst16 <$> getWord16le
+    pure $! Push action
 
-    getBody (Just x, len) = do
-      skip len
-      pure $! Operation x
+  getBody (Just x, len) = do
+    skip len
+    pure $! Operation x
 
-    getBody (Nothing, len) = do
-      skip len
-      pure $! Unknown
+  getBody (Nothing, len) = do
+    skip len
+    pure Unknown
 
 decodeString :: Get T.Text
 decodeString = T.decodeUtf8 . BS.toStrict <$> getLazyByteStringNul
@@ -345,7 +409,7 @@ decodeString = T.decodeUtf8 . BS.toStrict <$> getLazyByteStringNul
 inverseProjection :: (Enum a, Bounded a) => (a -> Word8) -> Word8 -> Maybe a
 inverseProjection project x =
   let domain = (,) <$> project <*> id
-  in fmap snd . find ((== x) . fst) $ domain <$> [minBound..maxBound]
+  in  fmap snd . find ((== x) . fst) $ domain <$> [minBound .. maxBound]
 
 pushTypeCode :: PushType -> Word8
 pushTypeCode PushStringType     = 0

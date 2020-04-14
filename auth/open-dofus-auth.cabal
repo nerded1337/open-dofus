@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: aa0ac8414a68721f3672d25102acb37c9e9cf8afdb78003763c7495988097979
+-- hash: 6fdab854e44a7486a87fa979d7db83eebdd50a29000cc4f726407b02c80b5ff3
 
 name:           open-dofus-auth
 version:        0.1.0.0
@@ -37,7 +37,7 @@ executable open-dofus-auth
   hs-source-dirs:
       src
   default-extensions: NoImplicitPrelude
-  ghc-options: -Wall -Werror -threaded -rtsopts "-with-rtsopts=-N -T -H128m -K64m"
+  ghc-options: -Wall -Werror -threaded -rtsopts -feager-blackholing "-with-rtsopts=-N -T -H128m -K64m"
   build-depends:
       MonadRandom
     , aeson

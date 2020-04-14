@@ -22,9 +22,8 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
-{-# OPTIONS_GHC -Wno-missing-signatures     #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
 
 module OpenDofus.Database.Game
   ( module X
@@ -46,26 +45,39 @@ module OpenDofus.Database.Game
   , mapSubArea
   , mapSubAreaNeighbour
   , map
+  , job
+  , skill
+  , skillCraft
+  , interactiveObject
+  , interactiveObjectGfx
   , character
   , characterPosition
   , characterLook
   , characterCaracteristic
   , gameDb
   , gameDbMigrations
-  ) where
+  )
+where
 
 import           Database.Beam
 import           Database.Beam.Migrate
 import           Database.Beam.Postgres
-import           OpenDofus.Database.Auth.Account   as X
-import           OpenDofus.Database.Game.Breed     as X
-import           OpenDofus.Database.Game.Character as X
-import           OpenDofus.Database.Game.Effect    as X
-import           OpenDofus.Database.Game.Item      as X
-import           OpenDofus.Database.Game.Map       as X
-import           OpenDofus.Database.Game.Spell     as X
-import           OpenDofus.Database.Types          as X
-import           OpenDofus.Prelude                 hiding (map)
+import           OpenDofus.Database.Auth.Account
+                                               as X
+import           OpenDofus.Database.Game.Breed as X
+import           OpenDofus.Database.Game.Character
+                                               as X
+import           OpenDofus.Database.Game.Effect
+                                               as X
+import           OpenDofus.Database.Game.InteractiveObject
+                                               as X
+import           OpenDofus.Database.Game.Item  as X
+import           OpenDofus.Database.Game.Job   as X
+import           OpenDofus.Database.Game.Map   as X
+import           OpenDofus.Database.Game.Skill as X
+import           OpenDofus.Database.Game.Spell as X
+import           OpenDofus.Database.Types      as X
+import           OpenDofus.Prelude       hiding ( map )
 
 newtype GameQuery a =
   GameQuery
@@ -97,6 +109,11 @@ data GameDb f = GameDb
     , _dbMapSubArea             :: !(f (TableEntity MapSubAreaT))
     , _dbMapSubAreaNeighbour    :: !(f (TableEntity MapSubAreaNeighbourT))
     , _dbMap                    :: !(f (TableEntity MapT))
+    , _dbJob                    :: !(f (TableEntity JobT))
+    , _dbSkill                  :: !(f (TableEntity SkillT))
+    , _dbSkillCraft             :: !(f (TableEntity SkillCraftT))
+    , _dbInteractiveObject      :: !(f (TableEntity InteractiveObjectT))
+    , _dbInteractiveObjectGfx   :: !(f (TableEntity InteractiveObjectGfxT))
     , _dbCharacter              :: !(f (TableEntity CharacterT))
     , _dbCharacterPosition      :: !(f (TableEntity CharacterPositionT))
     , _dbCharacterLook          :: !(f (TableEntity CharacterLookT))
@@ -105,204 +122,224 @@ data GameDb f = GameDb
     deriving stock (Generic)
     deriving anyclass (Database Postgres)
 
-GameDb
-  (TableLens breed)
-  (TableLens breedCost)
-  (TableLens breedSpell)
-  (TableLens effect)
-  (TableLens spell)
-  (TableLens spellLevel)
-  (TableLens itemSuperType)
-  (TableLens itemType)
-  (TableLens itemSlot)
-  (TableLens item)
-  (TableLens mapSuperArea)
-  (TableLens mapArea)
-  (TableLens mapSubArea)
-  (TableLens mapSubAreaNeighbour)
-  (TableLens map)
-  (TableLens character)
-  (TableLens characterPosition)
-  (TableLens characterLook)
-  (TableLens characterCaracteristic)
+GameDb (TableLens breed) (TableLens breedCost) (TableLens breedSpell) (TableLens effect) (TableLens spell) (TableLens spellLevel) (TableLens itemSuperType) (TableLens itemType) (TableLens itemSlot) (TableLens item) (TableLens mapSuperArea) (TableLens mapArea) (TableLens mapSubArea) (TableLens mapSubAreaNeighbour) (TableLens map) (TableLens job) (TableLens skill) (TableLens skillCraft) (TableLens interactiveObject) (TableLens interactiveObjectGfx) (TableLens character) (TableLens characterPosition) (TableLens characterLook) (TableLens characterCaracteristic)
   = dbLenses
 
 gameDb :: DatabaseSettings Postgres GameDb
 gameDb = unCheckDatabase $ evaluateDatabase gameDbMigrations
 
-gameDbMigrations ::
-     MigrationSteps Postgres () (CheckedDatabaseSettings Postgres GameDb)
+gameDbMigrations
+  :: MigrationSteps Postgres () (CheckedDatabaseSettings Postgres GameDb)
 gameDbMigrations = migrationStep "Initial commit" initialMigration
 
-initialMigration ::
-     () -> Migration Postgres (CheckedDatabaseSettings Postgres GameDb)
+initialMigration
+  :: () -> Migration Postgres (CheckedDatabaseSettings Postgres GameDb)
 initialMigration _ =
-  GameDb <$>
-  createTable
-    "breed"
-    (Breed
-       (field "id" int unique notNull)
-       (field "small_name" (varchar (Just 20)) notNull)
-       (field "long_name" (varchar (Just 50)) notNull)
-       (field "small_description" (varchar (Just 200)) notNull)
-       (field "description" (varchar Nothing) notNull)) <*>
-  createTable
-    "breed_characteristic_cost"
-    (BreedCharacteristicCost
-       (BreedPK $ field "breed_id" int notNull)
-       (field "element" int notNull)
-       (field "floor" int notNull)
-       (field "value" int notNull)
-       (field "bonus" int notNull)) <*>
-  createTable
-    "breed_spell"
-    (BreedSpell
-       (BreedPK $ field "breed_id" int notNull)
-       (SpellPK $ field "spell_id" int notNull)) <*>
-  createTable
-    "effect"
-    (Effect
-       (field "id" int unique notNull)
-       (field "type" enumType notNull)
-       (field "description" (varchar Nothing) notNull)
-       (field "has_jet" boolean notNull)
-       (field "show_in_tooltip" boolean notNull)
-       (field "operator" (maybeType enumType))
-       (field "characteristic" int notNull)) <*>
-  createTable
-    "spell"
-    (Spell
-       (field "id" int unique notNull)
-       (field "name" (varchar (Just 100)) notNull)
-       (field "description" (varchar Nothing) notNull)) <*>
-  createTable
-    "spell_level"
-    (SpellLevel
-       (SpellPK $ field "spell_id" int notNull)
-       (field "level" int notNull)
-       (field "normal_effects" (vectorType binaryFieldType) notNull)
-       (field "critical_effects" (vectorType binaryFieldType) notNull)
-       (field "ap_cost" int notNull)
-       (field "range_min" int notNull)
-       (field "range_max" int notNull)
-       (field "critical_hit" int notNull)
-       (field "critical_failure" int notNull)
-       (field "line_only" boolean notNull)
-       (field "line_of_sight" boolean notNull)
-       (field "free_ceel" boolean notNull)
-       (field "can_boost_range" boolean notNull)
-       (field "class_id" int notNull)
-       (field "launch_count_by_turn" int notNull)
-       (field "launch_count_by_player_turn" int notNull)
-       (field "delay_between_launch" int notNull)
-       (field "required_states" (vectorType int) notNull)
-       (field "forbidden_states" (vectorType int) notNull)
-       (field "min_player_level" int notNull)
-       (field "critical_failure_ends_turn" boolean notNull)) <*>
-  createTable "item_super_type" (ItemSuperType (field "id" int notNull)) <*>
-  createTable
-    "item_type"
-    (ItemType
-       (field "id" int notNull unique)
-       (ItemSuperTypePK $ field "super_type_id" int notNull)
-       (field "name" (varchar (Just 50)) notNull)
-       (field "effectZone" (maybeType binaryFieldType))) <*>
-  createTable
-    "item_slot"
-    (ItemSlot
-       (ItemSuperTypePK $ field "super_type_id" int notNull)
-       (field "id" int notNull)) <*>
-  createTable
-    "item"
-    (Item
-       (field "id" int notNull unique)
-       (ItemTypePK $ field "type_id" int notNull)
-       (field "name" (varchar (Just 100)) notNull)
-       (field "description" (varchar Nothing) notNull)
-       (field "gfx" int notNull)
-       (field "level" int notNull)
-       (field "weight" int notNull)
-       (field "price" int notNull)
-       (field "conditions" (maybeType (varchar (Just 200))))
-       (field "is_cursed" boolean notNull)
-       (field "is_enhanceable" boolean notNull)
-       (field "needs_two_hands" boolean notNull)
-       (field "is_ethereal" boolean notNull)
-       (field "is_hidden" boolean notNull)
-       (field "is_usable" boolean notNull)
-       (field "is_targetable" boolean notNull)
-       (field "animation" (maybeType int))
-       (field "weapon_infos" (maybeType binaryFieldType))
-       (field "statistics" (maybeType (varchar Nothing)))) <*>
-  createTable
-    "super_area"
-    (MapSuperArea
-       (field "id" int notNull unique)
-       (field "name" (varchar (Just 100)) notNull)) <*>
-  createTable
-    "area"
-    (MapArea
-       (field "id" int notNull unique)
-       (field "name" (varchar (Just 100)) notNull)
-       (MapSuperAreaPK $ field "super_area_id" int notNull)) <*>
-  createTable
-    "sub_area"
-    (MapSubArea
-       (field "id" int notNull unique)
-       (field "name" (varchar (Just 100)) notNull)
-       (MapAreaPK $ field "area_id" int notNull)
-       (field "musics" (unboundedArray int) notNull)) <*>
-  createTable
-    "sub_area_neighbour"
-    (MapSubAreaNeighbour
-       (MapSubAreaPK $ field "origin_sub_area_id" int notNull)
-       (MapSubAreaPK $ field "destination_sub_area_id" int notNull)) <*>
-  createTable
-    "map"
-    (Map
-       (field "id" int notNull unique)
-       (field "date" (varchar (Just 50)) notNull)
-       (MapSubAreaPK $ field "sub_area_id" int notNull)
-       (field "x" int notNull)
-       (field "y" int notNull)
-       (field "width" int notNull)
-       (field "height" int notNull)
-       (field "backgroum_num" int notNull)
-       (field "ambiance_id" int notNull)
-       (field "is_outdoor" boolean notNull)
-       (field "capabilities" int notNull)
-       (field "compressed_data" (varchar Nothing) notNull)
-       (field "data_key" (maybeType $ varchar Nothing))) <*>
-  createTable
-    "character"
-    (Character
-       (field "id" int notNull unique)
-       (field "name" (coerceType (varchar (Just 20))) notNull unique)
-       (BreedPK $ field "breed_id" int notNull)
-       (AccountPK $ field "account_id" (coerceType uuid) notNull)
-       (field "level" int notNull unique)
-       (field "max_level" int notNull unique)
-       (field "experience" int notNull unique)) <*>
-  createTable
-    "character_position"
-    (CharacterPosition
-       (CharacterPK $ field "character_id" int notNull unique)
-       (MapPK $ field "map_id" int notNull)
-       (field "cell_id" int notNull)) <*>
-  createTable
-    "character_look"
-    (CharacterLook
-       (CharacterPK $ field "character_id" int notNull unique)
-       (field "gfx_id" int notNull)
-       (field "gfx_size" int notNull)
-       (field "sex" (coerceType boolean) notNull)
-       (field "first_color" int notNull)
-       (field "second_color" int notNull)
-       (field "third_color" int notNull)) <*>
-  createTable
-    "character_caracteristic"
-    (CharacterCaracteristic
-       (CharacterPK $ field "character_id" int notNull)
-       (EffectPK $ field "effect_id" int notNull)
-       (field "source" enumType notNull)
-       (field "value" int notNull))
+  GameDb
+    <$> createTable
+          "breed"
+          (Breed (field "id" int unique notNull)
+                 (field "small_name" (varchar (Just 20)) notNull)
+                 (field "long_name" (varchar (Just 50)) notNull)
+                 (field "small_description" (varchar (Just 200)) notNull)
+                 (field "description" (varchar Nothing) notNull)
+          )
+    <*> createTable
+          "breed_characteristic_cost"
+          (BreedCharacteristicCost (BreedPK $ field "breed_id" int notNull)
+                                   (field "element" int notNull)
+                                   (field "floor" int notNull)
+                                   (field "value" int notNull)
+                                   (field "bonus" int notNull)
+          )
+    <*> createTable
+          "breed_spell"
+          (BreedSpell (BreedPK $ field "breed_id" int notNull)
+                      (SpellPK $ field "spell_id" int notNull)
+          )
+    <*> createTable
+          "effect"
+          (Effect (field "id" int unique notNull)
+                  (field "type" enumType notNull)
+                  (field "description" (varchar Nothing) notNull)
+                  (field "has_jet" boolean notNull)
+                  (field "show_in_tooltip" boolean notNull)
+                  (field "operator" (maybeType enumType))
+                  (field "characteristic" int notNull)
+          )
+    <*> createTable
+          "spell"
+          (Spell (field "id" int unique notNull)
+                 (field "name" (varchar (Just 100)) notNull)
+                 (field "description" (varchar Nothing) notNull)
+          )
+    <*> createTable
+          "spell_level"
+          (SpellLevel
+            (SpellPK $ field "spell_id" int notNull)
+            (field "level" int notNull)
+            (field "normal_effects" (vectorType binaryFieldType) notNull)
+            (field "critical_effects" (vectorType binaryFieldType) notNull)
+            (field "ap_cost" int notNull)
+            (field "range_min" int notNull)
+            (field "range_max" int notNull)
+            (field "critical_hit" int notNull)
+            (field "critical_failure" int notNull)
+            (field "line_only" boolean notNull)
+            (field "line_of_sight" boolean notNull)
+            (field "free_ceel" boolean notNull)
+            (field "can_boost_range" boolean notNull)
+            (field "class_id" int notNull)
+            (field "launch_count_by_turn" int notNull)
+            (field "launch_count_by_player_turn" int notNull)
+            (field "delay_between_launch" int notNull)
+            (field "required_states" (vectorType int) notNull)
+            (field "forbidden_states" (vectorType int) notNull)
+            (field "min_player_level" int notNull)
+            (field "critical_failure_ends_turn" boolean notNull)
+          )
+    <*> createTable "item_super_type" (ItemSuperType (field "id" int notNull))
+    <*> createTable
+          "item_type"
+          (ItemType (field "id" int notNull unique)
+                    (ItemSuperTypePK $ field "super_type_id" int notNull)
+                    (field "name" (varchar (Just 50)) notNull)
+                    (field "effectZone" (maybeType binaryFieldType))
+          )
+    <*> createTable
+          "item_slot"
+          (ItemSlot (ItemSuperTypePK $ field "super_type_id" int notNull)
+                    (field "id" int notNull)
+          )
+    <*> createTable
+          "item"
+          (Item (field "id" int notNull unique)
+                (ItemTypePK $ field "type_id" int notNull)
+                (field "name" (varchar (Just 100)) notNull)
+                (field "description" (varchar Nothing) notNull)
+                (field "gfx" int notNull)
+                (field "level" int notNull)
+                (field "weight" int notNull)
+                (field "price" int notNull)
+                (field "conditions" (maybeType (varchar (Just 200))))
+                (field "is_cursed" boolean notNull)
+                (field "is_enhanceable" boolean notNull)
+                (field "needs_two_hands" boolean notNull)
+                (field "is_ethereal" boolean notNull)
+                (field "is_hidden" boolean notNull)
+                (field "is_usable" boolean notNull)
+                (field "is_targetable" boolean notNull)
+                (field "animation" (maybeType int))
+                (field "weapon_infos" (maybeType binaryFieldType))
+                (field "statistics" (maybeType (varchar Nothing)))
+          )
+    <*> createTable
+          "super_area"
+          (MapSuperArea (field "id" int notNull unique)
+                        (field "name" (varchar (Just 100)) notNull)
+          )
+    <*> createTable
+          "area"
+          (MapArea (field "id" int notNull unique)
+                   (field "name" (varchar (Just 100)) notNull)
+                   (MapSuperAreaPK $ field "super_area_id" int notNull)
+          )
+    <*> createTable
+          "sub_area"
+          (MapSubArea (field "id" int notNull unique)
+                      (field "name" (varchar (Just 100)) notNull)
+                      (MapAreaPK $ field "area_id" int notNull)
+                      (field "musics" (unboundedArray int) notNull)
+          )
+    <*> createTable
+          "sub_area_neighbour"
+          (MapSubAreaNeighbour
+            (MapSubAreaPK $ field "origin_sub_area_id" int notNull)
+            (MapSubAreaPK $ field "destination_sub_area_id" int notNull)
+          )
+    <*> createTable
+          "map"
+          (Map (field "id" int notNull unique)
+               (field "date" (varchar (Just 50)) notNull)
+               (MapSubAreaPK $ field "sub_area_id" int notNull)
+               (field "x" int notNull)
+               (field "y" int notNull)
+               (field "width" int notNull)
+               (field "height" int notNull)
+               (field "backgroum_num" int notNull)
+               (field "ambiance_id" int notNull)
+               (field "is_outdoor" boolean notNull)
+               (field "capabilities" int notNull)
+               (field "compressed_data" (varchar Nothing) notNull)
+               (field "data_key" (maybeType $ varchar Nothing))
+          )
+    <*> createTable
+          "job"
+          (Job (field "id" int notNull unique)
+               (JobPK $ field "sub_job_id" (maybeType int))
+               (field "name" (varchar $ Just 50) notNull)
+          )
+    <*> createTable
+          "skill"
+          (Skill
+            (field "id" int notNull unique)
+            (field "description" (varchar $ Just 50) notNull)
+            (JobPK $ field "job_id" int notNull)
+            (InteractiveObjectPK $ field "interactive_object_id" int notNull)
+            (ItemPK $ field "item_id" (maybeType int))
+            (field "criterion" (maybeType $ varchar $ Just 30))
+          )
+    <*> createTable
+          "skill_craft"
+          (SkillCraft (SkillPK $ field "skill_id" int notNull)
+                      (ItemPK $ field "item_id" int notNull)
+          )
+    <*> createTable
+          "interactive_object"
+          (InteractiveObject (field "id" int notNull unique)
+                             (field "type" enumType notNull)
+                             (field "name" (varchar $ Just 150) notNull)
+          )
+    <*> createTable
+          "interactive_object_gfx"
+          (InteractiveObjectGfx
+            (field "id" int notNull unique)
+            (InteractiveObjectPK $ field "interactive_object_id" int notNull)
+          )
+    <*> createTable
+          "character"
+          (Character
+            (field "id" int notNull unique)
+            (field "name" (coerceType (varchar (Just 20))) notNull unique)
+            (BreedPK $ field "breed_id" int notNull)
+            (AccountPK $ field "account_id" (coerceType uuid) notNull)
+            (field "level" int notNull)
+            (field "max_level" int notNull)
+            (field "experience" int notNull)
+          )
+    <*> createTable
+          "character_position"
+          (CharacterPosition
+            (CharacterPK $ field "character_id" int notNull unique)
+            (MapPK $ field "map_id" int notNull)
+            (field "cell_id" int notNull)
+          )
+    <*> createTable
+          "character_look"
+          (CharacterLook
+            (CharacterPK $ field "character_id" int notNull unique)
+            (field "gfx_id" int notNull)
+            (field "gfx_size" int notNull)
+            (field "sex" (coerceType boolean) notNull)
+            (field "first_color" int notNull)
+            (field "second_color" int notNull)
+            (field "third_color" int notNull)
+          )
+    <*> createTable
+          "character_caracteristic"
+          (CharacterCaracteristic
+            (CharacterPK $ field "character_id" int notNull)
+            (EffectPK $ field "effect_id" int notNull)
+            (field "source" enumType notNull)
+            (field "value" int notNull)
+          )

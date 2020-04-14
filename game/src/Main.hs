@@ -21,7 +21,7 @@
 
 module Main where
 
-import qualified Data.ByteString.Lazy.Char8     as BS
+import qualified Data.ByteString.Lazy.Char8    as BS
 import           Database.Beam.Postgres
 import           OpenDofus.Core.Network.Server
 import           OpenDofus.Database
@@ -31,28 +31,29 @@ import           OpenDofus.Prelude
 
 loggingHandler :: GameClientHandler
 loggingHandler = MessageHandlerCont go
-  where
-    go = do
-      m <- asks (view handlerInputMessage)
-      liftIO $ BS.putStrLn $ BS.pack $ show m
-      pure loggingHandler
+ where
+  go = do
+    m <- asks (view handlerInputMessage)
+    liftIO $ BS.putStrLn $ BS.pack $ show m
+    pure loggingHandler
 
 app :: RIO OpenDofusApp ()
 app = do
-  authDbPool <-
-    createConnPool $
-    ConnectInfo "localhost" 5432 "nerded" "nerded" "opendofus_auth"
-  gameDbPool <-
-    createConnPool $
-    ConnectInfo "localhost" 5432 "nerded" "nerded" "opendofus_game"
+  authDbPool <- createConnPool
+    $ ConnectInfo "localhost" 5432 "nerded" "nerded" "opendofus_auth"
+  gameDbPool <- createConnPool
+    $ ConnectInfo "localhost" 5432 "nerded" "nerded" "opendofus_game"
   serv <-
-    GameServer <$> (mkServer 8081 1000 128 mkClient) <*> pure authDbPool <*>
-    pure gameDbPool
+    GameServer
+    <$> mkServer 8081 1000 128 mkClient
+    <*> pure authDbPool
+    <*> pure gameDbPool
+    <*> pure (WorldId 604)
   logInfo "Starting game server"
   result <- startServer serv (loggingHandler <> helloGameHandler)
   case result of
-    Right _ -> logInfo "Server shutdown successfully"
-    Left err -> logWarn $ "Failed to start server: " <> displayShow err
+    Right _   -> logInfo "Server shutdown successfully"
+    Left  err -> logWarn $ "Failed to start server: " <> displayShow err
 
 main :: IO ()
 main = runOpenDofusApp False app

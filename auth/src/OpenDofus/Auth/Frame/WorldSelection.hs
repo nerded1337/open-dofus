@@ -49,10 +49,10 @@ worldSelectionHandler worlds acc =
             runVolatile @AuthDbConn $ generateAccountTicket (acc ^. accountId)
           sendMessage $
             WorldSelectionSuccess (WorldServerEndpointInfo worldFound) ticket
-          pure MessageHandlerDisconnect
+          pure $ MessageHandlerDisconnect mempty
         Nothing -> do
           sendMessage WorldSelectionFailure
-          pure MessageHandlerDisconnect
+          pure $ MessageHandlerDisconnect mempty
     go (ClientSent ('A' :- ('x' :- _))) = do
       remainingSubscription <-
         getAccountRemainingSubscriptionInMilliseconds $

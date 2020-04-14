@@ -1,4 +1,4 @@
--- Logout.hs ---
+-- Object.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
 
@@ -17,21 +17,23 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeApplications #-}
+module OpenDofus.Game.Object
+  ( module X
+  , GameObject(..)
+  , GameTimer(..)
+  )
+where
 
-module OpenDofus.Auth.Frame.Logout where
-
-import           OpenDofus.Auth.Server
-import           OpenDofus.Core.Network.Client
-import           OpenDofus.Database
+import           OpenDofus.Game.Types          as X
 import           OpenDofus.Prelude
 
-logoutHandler :: Account -> AuthClientHandler
-logoutHandler acc = MessageHandlerCont $ go =<< asks (view handlerInputMessage)
-  where
-    go ClientDisconnected = do
-      runSerializable @AuthDbConn $
-        setAccountIsOnline (acc ^. accountId) (AccountIsOnline False)
-      pure $ MessageHandlerDisconnect $ pure mempty
-    go _ = pure $ logoutHandler acc
+data GameTimer = GameTimer
+    { _gameTimerRemainingTriggers :: !(Maybe Word32)
+    , _gameTimerTriggerInterval   :: {-# UNPACK #-} !GameTime
+    , _gameTimerNextTrigger       :: {-# UNPACK #-} !GameTime
+    }
+
+data GameObject = GameObject
+    { _gameObjectLastUpdate :: {-# UNPACK #-} !GameTime
+    , _gameObjectTimers     :: {-# UNPACK #-} !(Vector GameTimer)
+    }

@@ -1,4 +1,4 @@
--- Logout.hs ---
+-- Instance.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
 
@@ -17,21 +17,21 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
-module OpenDofus.Auth.Frame.Logout where
+module OpenDofus.Game.Map.Instance
+  ( module X
+  , MapInstance(..)
+  , HasMapInstance(..)
+  )
+where
 
-import           OpenDofus.Auth.Server
-import           OpenDofus.Core.Network.Client
+import           OpenDofus.Game.Map.Cell       as X
 import           OpenDofus.Database
-import           OpenDofus.Prelude
+import           OpenDofus.Prelude       hiding ( Map )
 
-logoutHandler :: Account -> AuthClientHandler
-logoutHandler acc = MessageHandlerCont $ go =<< asks (view handlerInputMessage)
-  where
-    go ClientDisconnected = do
-      runSerializable @AuthDbConn $
-        setAccountIsOnline (acc ^. accountId) (AccountIsOnline False)
-      pure $ MessageHandlerDisconnect $ pure mempty
-    go _ = pure $ logoutHandler acc
+data MapInstance = MapInstance
+    { _mapInstanceTemplate :: Map
+    }
+
+makeClassy ''MapInstance

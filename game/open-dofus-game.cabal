@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: db6898906f3ee0a754a926af07f57e3f3c3797d70c46e029406ed414ab919099
+-- hash: 21ca4f26b7b1f2e0254fa9d64e2a535b1adf84baa6a15da954bb7aa58a5c054f
 
 name:           open-dofus-game
 version:        0.1.0.0
@@ -26,20 +26,29 @@ source-repository head
 executable open-dofus-game
   main-is: Main.hs
   other-modules:
+      OpenDofus.Game.Character
       OpenDofus.Game.Frame.Authentication
       OpenDofus.Game.Frame.CharacterSelection
       OpenDofus.Game.Frame.HelloGame
       OpenDofus.Game.Frame.Logout
+      OpenDofus.Game.Map
+      OpenDofus.Game.Map.Cell
+      OpenDofus.Game.Map.Instance
+      OpenDofus.Game.Map.Interactive
+      OpenDofus.Game.Map.Interactive.Instance
       OpenDofus.Game.Network.Message
+      OpenDofus.Game.Object
       OpenDofus.Game.Server
+      OpenDofus.Game.Types
       Paths_open_dofus_game
   hs-source-dirs:
       src
   default-extensions: NoImplicitPrelude
-  ghc-options: -Wall -Werror -threaded -rtsopts "-with-rtsopts=-N -T -H512m -K64m"
+  ghc-options: -Wall -Werror -threaded -rtsopts -feager-blackholing "-with-rtsopts=-N -T -H512m -K64m"
   build-depends:
       MonadRandom
     , aeson
+    , attoparsec
     , base >=4.7 && <5
     , beam-core
     , beam-migrate

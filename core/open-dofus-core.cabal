@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 85d1af7c75a4f2a85482fbac66de57eb05a938c55103d18096b631bacb0ae03b
+-- hash: b7e17e9f21e7f361c23a773aed871d6f3cb58fc6e53da29d3ff3aa63b18786e2
 
 name:           open-dofus-core
 version:        0.1.0.0
@@ -57,6 +57,7 @@ library
     , bytestring
     , clock
     , containers
+    , dhall
     , directory
     , filepath
     , ip
@@ -79,5 +80,4 @@ library
     , uuid
     , vector
     , vector-binary-instances
-    , vinyl
   default-language: Haskell2010

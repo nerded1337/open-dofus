@@ -40,6 +40,7 @@ dependencies:
 - beam-migrate
 - postgresql-simple
 - rio
+- attoparsec
 
 default-extensions:
   - NoImplicitPrelude 
@@ -56,7 +57,7 @@ executables:
       # - -O2
       # - -fspecialise-aggressively
       # - -fexpose-all-unfoldings
-      # - -feager-blackholing
+      - -feager-blackholing
       # - -fstatic-argument-transformation
       # - -fllvm
       - "\"-with-rtsopts=-N -T -H512m -K64m\""

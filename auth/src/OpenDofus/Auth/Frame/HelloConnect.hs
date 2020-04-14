@@ -30,7 +30,6 @@ helloConnectHandler :: AuthClientHandler
 helloConnectHandler = MessageHandlerCont go
   where
     go = do
-      disconnect
       salt <- evalRandTIO newSalt
       sendMessage $ HelloConnect salt
       pure $ protocolHandler salt

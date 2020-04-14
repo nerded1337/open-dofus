@@ -39,21 +39,20 @@ import           OpenDofus.Core.Network.Types
 import           OpenDofus.Database
 import           OpenDofus.Prelude
 
-data AuthClient = AuthClient
-    { _authClientNetId :: !NetworkId
-    , _authClientState :: !ClientState
+newtype AuthClient = AuthClient
+    { _authClientState :: ClientState
     }
 
 makeClassy ''AuthClient
 
 data AuthServer = AuthServer
-    { _authServerState  :: !(ServerState AuthClient)
-    , _authServerDbPool :: !(Pool AuthDbConn)
+    { _authServerState  :: {-# UNPACK #-} !(ServerState AuthClient)
+    , _authServerDbPool :: {-# UNPACK #-} !(Pool AuthDbConn)
     }
 
 makeClassy ''AuthServer
 
-type AuthClientHandler = MessageHandler AuthServer AuthClient
+type AuthClientHandler = MessageHandler IO AuthServer AuthClient
 
 instance HasConnectPool AuthServer AuthDbConn where
   {-# INLINE getConnectionPool #-}
@@ -67,8 +66,9 @@ instance HasServerState AuthServer AuthClient where
   serverState = authServerState
 
 instance Show AuthClient where
-  show (AuthClient netId _) =
-    "AuthClient { " <> show netId <> " }"
+  {-# INLINE show #-}
+  show (AuthClient s) =
+    "AuthClient { " <> show (s ^. clientStateNetworkId) <> " }"
 
 instance HasClientConnection AuthClient where
   {-# INLINE clientConnection #-}
@@ -80,9 +80,9 @@ instance HasClientState AuthClient where
 
 instance HasNetworkId AuthClient where
   {-# INLINE networkId #-}
-  networkId = authClientNetId
+  networkId = authClientState . clientStateNetworkId
 
 {-# INLINE mkClient #-}
 mkClient :: NetworkId -> ClientBuffer -> ClientConnection -> STM AuthClient
 mkClient i b c =
-  pure $ AuthClient i (ClientState b c)
+  pure $ AuthClient (ClientState b c i)

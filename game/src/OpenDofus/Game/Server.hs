@@ -38,22 +38,27 @@ import           OpenDofus.Core.Network.Types
 import           OpenDofus.Database
 import           OpenDofus.Prelude
 
-data GameClient = GameClient
-    { _gameClientNetId :: !NetworkId
-    , _gameClientState :: !ClientState
+newtype GameClient =
+  GameClient
+    { _gameClientState :: ClientState
     }
 
 makeClassy ''GameClient
 
 data GameServer = GameServer
-    { _gameServerState      :: !(ServerState GameClient)
-    , _gameServerAuthDbPool :: !(Pool AuthDbConn)
-    , _gameServerGameDbPool :: !(Pool GameDbConn)
+    { _gameServerState      :: {-# UNPACK #-} !(ServerState GameClient)
+    , _gameServerAuthDbPool :: {-# UNPACK #-} !(Pool AuthDbConn)
+    , _gameServerGameDbPool :: {-# UNPACK #-} !(Pool GameDbConn)
+    , _gameServerWorldId    :: {-# UNPACK #-} !WorldId
     }
 
 makeClassy ''GameServer
 
-type GameClientHandler = MessageHandler GameServer GameClient
+type GameHandlerInput = HandlerInput GameServer GameClient
+
+type GameHandlerCallback a = MessageHandlerCallback GameHandlerInput IO a
+
+type GameClientHandler = MessageHandler IO GameServer GameClient
 
 instance HasConnectPool GameServer GameDbConn where
   {-# INLINE getConnectionPool #-}
@@ -71,8 +76,9 @@ instance HasServerState GameServer GameClient where
   serverState = gameServerState
 
 instance Show GameClient where
-  show (GameClient netId _) =
-    "GameClient { " <> show netId <> " }"
+  {-# INLINE show #-}
+  show (GameClient s) =
+    "GameClient { " <> show (s ^. clientStateNetworkId) <> " }"
 
 instance HasClientConnection GameClient where
   {-# INLINE clientConnection #-}
@@ -84,9 +90,9 @@ instance HasClientState GameClient where
 
 instance HasNetworkId GameClient where
   {-# INLINE networkId #-}
-  networkId = gameClientNetId
+  networkId = gameClientState . clientStateNetworkId
 
 {-# INLINE mkClient #-}
 mkClient :: NetworkId -> ClientBuffer -> ClientConnection -> STM GameClient
 mkClient i b c =
-  pure $ GameClient i (ClientState b c)
+  pure $ GameClient (ClientState b c i)
