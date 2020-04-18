@@ -77,7 +77,7 @@ import           OpenDofus.Database.Game.Map   as X
 import           OpenDofus.Database.Game.Skill as X
 import           OpenDofus.Database.Game.Spell as X
 import           OpenDofus.Database.Types      as X
-import           OpenDofus.Prelude       hiding ( map )
+import           OpenDofus.Prelude
 
 newtype GameQuery a =
   GameQuery
@@ -259,19 +259,20 @@ initialMigration _ =
           )
     <*> createTable
           "map"
-          (Map (field "id" int notNull unique)
-               (field "date" (varchar (Just 50)) notNull)
-               (MapSubAreaPK $ field "sub_area_id" int notNull)
-               (field "x" int notNull)
-               (field "y" int notNull)
-               (field "width" int notNull)
-               (field "height" int notNull)
-               (field "backgroum_num" int notNull)
-               (field "ambiance_id" int notNull)
-               (field "is_outdoor" boolean notNull)
-               (field "capabilities" int notNull)
-               (field "compressed_data" (varchar Nothing) notNull)
-               (field "data_key" (maybeType $ varchar Nothing))
+          (Map
+            (field "id" int notNull unique)
+            (field "date" (coerceType $ varchar (Just 50)) notNull)
+            (MapSubAreaPK $ field "sub_area_id" int notNull)
+            (field "x" int notNull)
+            (field "y" int notNull)
+            (field "width" int notNull)
+            (field "height" int notNull)
+            (field "backgroum_num" int notNull)
+            (field "ambiance_id" int notNull)
+            (field "is_outdoor" boolean notNull)
+            (field "capabilities" int notNull)
+            (field "compressed_data" (coerceType $ varchar Nothing) notNull)
+            (field "data_key" (coerceType $ maybeType $ varchar Nothing))
           )
     <*> createTable
           "job"

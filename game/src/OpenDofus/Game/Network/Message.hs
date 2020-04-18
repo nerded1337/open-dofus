@@ -23,8 +23,10 @@ module OpenDofus.Game.Network.Message where
 
 import           Data.ByteString.Lazy.Builder
 import           OpenDofus.Core.Network.Client
+import           OpenDofus.Game.Server
 import           OpenDofus.Database
 import           OpenDofus.Game.Character
+import           OpenDofus.Game.Map.Actor
 import           OpenDofus.Prelude
 
 data CharacterCreationFailureReason
@@ -42,25 +44,64 @@ data GameMessage
   | AccountRegionalVersion
   | CharacterList
       AccountRemainingSubscriptionInMilliseconds
-      [CharacterSelectionInfo]
+      [CharacterListInfo]
   | CharacterCreationSuccess
   | CharacterCreationFailure CharacterCreationFailureReason
+  | CharacterSelectionSuccess (PlayerCharacter GameClient)
+  | GameCreationSuccess
+  | GameDataMap MapId MapCreationDate MapDataKey
 
 instance ToNetwork GameMessage where
   {-# INLINE toNetwork #-}
-  toNetwork HelloGame = "HG"
+  toNetwork HelloGame              = "HG"
   toNetwork AccountTicketIsInvalid = "ATE"
-  toNetwork AccountTicketIsValid = "ATK0"
+  toNetwork AccountTicketIsValid   = "ATK0"
   toNetwork AccountRegionalVersion = "AVen"
   toNetwork (CharacterList subscription characters) =
-    "ALK" <>
-    word32Dec (unAccountRemainingSubscriptionInMilliseconds subscription) <>
-    "|" <> intDec (length characters) <> toNetwork (FoldNetwork characters)
+    "ALK"
+      <> word32Dec (unAccountRemainingSubscriptionInMilliseconds subscription)
+      <> "|"
+      <> intDec (length characters)
+      <> toNetwork (FoldNetwork characters)
   toNetwork (CharacterCreationFailure reason) = "AAE" <> go reason
-    where
-      go CharacterCreationFailureReasonFull               = "f"
-      go CharacterCreationFailureReasonNameAlreadyExists  = "a"
-      go CharacterCreationFailureReasonBadName            = "n"
-      go CharacterCreationFailureReasonSubscriptionIsOver = "s"
-      go _                                                = ""
+   where
+    go CharacterCreationFailureReasonFull = "f"
+    go CharacterCreationFailureReasonNameAlreadyExists = "a"
+    go CharacterCreationFailureReasonBadName = "n"
+    go CharacterCreationFailureReasonSubscriptionIsOver = "s"
+    go _ = ""
   toNetwork CharacterCreationSuccess = "AAK"
+  toNetwork (CharacterSelectionSuccess pc) =
+    let base = pc ^. playerCharacterBaseCharacter
+        look = pc ^. playerCharacterCharacterLook
+    in  "ASK|"
+          <> word64Dec (unCharacterId $ base ^. characterId)
+          <> "|"
+          <> byteString
+               (encodeTextStrict $ unCharacterName $ base ^. characterName)
+          <> "|"
+          <> word32Dec (unCharacterLevel $ base ^. characterLevel)
+          <> "|"
+          <> intDec (unBreedId $ base ^. characterBreedId)
+          <> "|"
+          <> bool "0" "1" (unCharacterSex $ look ^. characterLookSex)
+          <> "|"
+          <> word32Dec (unGfxId $ look ^. characterLookGfxId)
+          <> "|"
+          <> intDec (unCharacterColor $ look ^. characterLookFirstColor)
+          <> "|"
+          <> intDec (unCharacterColor $ look ^. characterLookSecondColor)
+          <> "|"
+          <> intDec (unCharacterColor $ look ^. characterLookThirdColor)
+          <> "|"
+          <> "" -- TODO: inventory content
+          <> "|"
+  toNetwork GameCreationSuccess = "GCK|1|"
+  toNetwork (GameDataMap i d k) =
+    "GDM|"
+      <> word32Dec (unMapId i)
+      <> "|"
+      <> byteString (encodeTextStrict $ unMapCreationDate d)
+      <> "|"
+      <> byteString (encodeTextStrict $ unMapDataKey k)
+

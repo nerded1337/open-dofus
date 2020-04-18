@@ -56,9 +56,9 @@ getBreed
 getBreed bid (Object b) =
   let str i = SWF.unsafeString i $ fromMaybe (error i) $ H.lookup (T.pack i) b
       arr i = SWF.unsafeArray i $ fromMaybe (error i) $ H.lookup (T.pack i) b
-      getStep element (Array v) = BreedCharacteristicCost
+      getStep el (Array v) = BreedCharacteristicCost
         (BreedPK (BreedId bid))
-        element
+        el
         (SWF.unsafeInt "costFloor" $ V.unsafeIndex v 0)
         (SWF.unsafeInt "costValue" $ V.unsafeIndex v 1)
         (maybe 1 (SWF.unsafeInt "costBonus") $ v V.!? 2)

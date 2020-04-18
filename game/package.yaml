@@ -23,6 +23,7 @@ dependencies:
 - ip
 - stm
 - containers
+- unordered-containers
 - vector
 - directory
 - lens
@@ -41,6 +42,9 @@ dependencies:
 - postgresql-simple
 - rio
 - attoparsec
+- unagi-chan
+- uri-encode
+- recursion-schemes
 
 default-extensions:
   - NoImplicitPrelude 

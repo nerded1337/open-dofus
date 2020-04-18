@@ -38,6 +38,9 @@ module OpenDofus.Database
   , getBreedById
   , getCharacterByName
   , createNewCharacter
+  , getMapIds
+  , getMapById
+  , getInteractiveObjectByGfxId
   )
 where
 
@@ -56,11 +59,11 @@ import           OpenDofus.Database.SWF.Breed
 import           OpenDofus.Database.SWF.Effect
 import           OpenDofus.Database.SWF.InteractiveObject
 import           OpenDofus.Database.SWF.Item
-import           OpenDofus.Database.SWF.Skill
 import           OpenDofus.Database.SWF.Job
 import           OpenDofus.Database.SWF.Map
+import           OpenDofus.Database.SWF.Skill
 import           OpenDofus.Database.SWF.Spell
-import           OpenDofus.Prelude       hiding ( map )
+import           OpenDofus.Prelude
 
 {-# INLINE populateGameDb #-}
 populateGameDb
@@ -312,3 +315,26 @@ createNewCharacter ai cn b s c1 c2 c3 = GameQuery query
     runInsert $ insert (gameDb ^. characterLook) $ insertValues
       [newCharacterLook]
     pure (newCharacter, newCharacterLook)
+
+getMapIds :: GameQuery [MapId]
+getMapIds = GameQuery query
+ where
+  query = runSelectReturningList $ select $ do
+    m <- all_ (gameDb ^. map)
+    pure $ m ^. mapId
+
+getMapById :: MapId -> GameQuery (Maybe Map)
+getMapById mid = GameQuery query
+  where query = runSelectReturningOne $ lookup_ (gameDb ^. map) (MapPK mid)
+
+getInteractiveObjectByGfxId
+  :: InteractiveObjectGfxId -> GameQuery (Maybe InteractiveObject)
+getInteractiveObjectByGfxId iogfx = GameQuery query
+ where
+  query = runSelectReturningOne $ select $ do
+    io  <- all_ (gameDb ^. interactiveObject)
+    gfx <- oneToMany_ (gameDb ^. interactiveObjectGfx)
+                      _interactiveObjectGfxInteractiveObjectId
+                      io
+    guard_ (gfx ^. interactiveObjectGfxId ==. val_ iogfx)
+    pure io

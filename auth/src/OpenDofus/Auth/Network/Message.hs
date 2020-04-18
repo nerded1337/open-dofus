@@ -17,9 +17,9 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE OverloadedStrings  #-}
 
 module OpenDofus.Auth.Network.Message
   ( AuthMessage(..)
@@ -28,11 +28,12 @@ module OpenDofus.Auth.Network.Message
   , WorldServerEndpointInfo(..)
   , Salt(unSalt)
   , newSalt
-  ) where
+  )
+where
 
 import           Control.Monad.Random
-import           Data.ByteString.Lazy.Builder        as BS
-import           Data.ByteString.Lazy.Char8          as BS
+import           Data.ByteString.Builder       as BS
+import           Data.ByteString.Char8         as BS
 import           OpenDofus.Core.Network.Client
 import           OpenDofus.Database.Auth.Account
 import           OpenDofus.Database.Auth.WorldServer
@@ -51,13 +52,17 @@ newtype WorldServerInfo =
 instance ToNetwork WorldServerInfo where
   {-# INLINE toNetwork #-}
   toNetwork (WorldServerInfo (WorldServer i c s _ _)) =
-    "|" <>
-    intDec (unWorldId i) <>
-    ";" <>
-    intDec (fromEnum s) <> ";" <> intDec (fromEnum c) <> ";" <> canLogin s
-    where
-      canLogin WorldStatusOnline = "1"
-      canLogin _ = "0"
+    "|"
+      <> intDec (unWorldId i)
+      <> ";"
+      <> intDec (fromEnum s)
+      <> ";"
+      <> intDec (fromEnum c)
+      <> ";"
+      <> canLogin s
+   where
+    canLogin WorldStatusOnline = "1"
+    canLogin _                 = "0"
 
 newtype WorldServerEndpointInfo =
   WorldServerEndpointInfo
@@ -66,7 +71,7 @@ newtype WorldServerEndpointInfo =
 
 instance ToNetwork WorldServerEndpointInfo where
   toNetwork (WorldServerEndpointInfo (WorldServer _ _ _ i p)) =
-    lazyByteString (encodeText $ unIP i) <> ":" <> stringUtf8 (show p)
+    byteString (encodeTextStrict $ unIP i) <> ":" <> stringUtf8 (show p)
 
 data AuthFailureReason = AuthFailureInvalidProtocol BS.ByteString
     | AuthFailureInvalidCredentials
@@ -86,31 +91,31 @@ data AuthMessage = HelloConnect Salt
 
 instance ToNetwork AuthMessage where
   {-# INLINE toNetwork #-}
-  toNetwork (HelloConnect salt) = "HC" <> lazyByteString (unSalt salt)
-  toNetwork (AuthFailure reason) = "AlE" <> go reason
-    where
-      go (AuthFailureInvalidProtocol requiredVersion) =
-        "v" <> lazyByteString requiredVersion
-      go AuthFailureInvalidCredentials = "f"
-      go AuthFailureBanned = "b"
-      go AuthFailureAlreadyConnected = "c"
-      go AuthFailureServerBusy = "w"
+  toNetwork (HelloConnect salt  ) = "HC" <> byteString (unSalt salt)
+  toNetwork (AuthFailure  reason) = "AlE" <> go reason
+   where
+    go (AuthFailureInvalidProtocol requiredVersion) =
+      "v" <> byteString requiredVersion
+    go AuthFailureInvalidCredentials = "f"
+    go AuthFailureBanned             = "b"
+    go AuthFailureAlreadyConnected   = "c"
+    go AuthFailureServerBusy         = "w"
   toNetwork (AuthSuccess (AccountIsAdmin b)) = "AlK" <> bool "0" "1" b
   toNetwork (WorldServerList worlds) = "AH" <> toNetwork (FoldNetwork worlds)
   toNetwork (AccountCurrentNickName nickName) =
-    "Ad" <> lazyByteString (encodeText (unAccountNickName nickName))
+    "Ad" <> byteString (encodeTextStrict (unAccountNickName nickName))
   toNetwork (WorldCharacterList worlds subscription) =
-    "AxK" <>
-    stringUtf8 (show subscription) <>
-    foldMap (("|" <>) . (<> ",1") . stringUtf8 . show) worlds
+    "AxK"
+      <> stringUtf8 (show subscription)
+      <> foldMap (("|" <>) . (<> ",1") . stringUtf8 . show) worlds
   toNetwork (WorldSelectionSuccess endpoint ticket) =
-    "AYK" <>
-    toNetwork endpoint <> ";" <> stringUtf8 (show $ ticket ^. accountTicketId)
+    "AYK" <> toNetwork endpoint <> ";" <> stringUtf8
+      (show $ ticket ^. accountTicketId)
   toNetwork WorldSelectionFailure = "AXEd"
 
 {-# INLINE newSalt #-}
 newSalt :: (RandomGen a, Monad m) => RandT a m Salt
 newSalt =
   let ticketLength = 32
-   in Salt . foldMap BS.singleton <$>
-      replicateM ticketLength (getRandomR ('A', 'z'))
+  in  Salt . foldMap BS.singleton <$> replicateM ticketLength
+                                                 (getRandomR ('A', 'z'))

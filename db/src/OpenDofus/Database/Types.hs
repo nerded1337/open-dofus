@@ -33,14 +33,14 @@
 
 module OpenDofus.Database.Types where
 
-import           Data.Binary                          as B
+import           Data.Binary                   as B
 import           Data.ByteString.Builder
-import qualified Data.ByteString.Lazy                 as BS
+import qualified Data.ByteString.Lazy          as BS
 import           Data.Coerce
 import           Data.Kind
 import           Data.Pool
 import           Data.Proxy
-import qualified Data.Vector                          as V
+import qualified Data.Vector                   as V
 import           Database.Beam
 import           Database.Beam.Backend
 import           Database.Beam.Migrate.Generics
@@ -48,11 +48,11 @@ import           Database.Beam.Postgres
 import           Database.Beam.Postgres.Syntax
 import           Database.PostgreSQL.Simple.FromField
 import           Database.PostgreSQL.Simple.ToField
-import qualified Database.PostgreSQL.Simple.Types     as T
+import qualified Database.PostgreSQL.Simple.Types
+                                               as T
 import           OpenDofus.Core.Network.Server
 import           OpenDofus.Data.Constructible
 import           OpenDofus.Prelude
-import           RIO.Partial                          (toEnum)
 
 class (forall a. Coercible (q a) (Pg a), forall a. Coercible (Pg a) (q a)) => IsPg q where
   {-# INLINE toPg #-}
@@ -144,18 +144,24 @@ instance (FromField a, Typeable a) => FromField (PgArray a) where
   fromField u v = PgArray <$> fromField u v
 
 instance (ToField a, HasDefaultSqlDataType Postgres a) => ToField (PgArray a) where
-    toField (PgArray arr) =
-      if V.length arr > 0
-      then Many $
-          Plain (byteString "ARRAY[") :
-          V.toList (intersperseC (Plain (char8 ',')) . fmap toField $ arr) <>
-          [Plain (byteString "]::" <> byteString (BS.toStrict $ pgRenderSyntaxScript getSyntax) <> byteString "[]")]
-      else Plain (byteString "'{}'")
-      where
-        getSyntax :: PgSyntax
-        getSyntax =
-          let (PgDataTypeSyntax _ syntax _) = defaultSqlDataType (Proxy @a) (Proxy @Postgres) False
-          in syntax
+  toField (PgArray arr) = if V.length arr > 0
+    then
+      Many
+      $  Plain (byteString "ARRAY[")
+      :  V.toList (intersperseC (Plain (char8 ',')) . fmap toField $ arr)
+      <> [ Plain
+             (  byteString "]::"
+             <> byteString (BS.toStrict $ pgRenderSyntaxScript getSyntax)
+             <> byteString "[]"
+             )
+         ]
+    else Plain (byteString "'{}'")
+   where
+    getSyntax :: PgSyntax
+    getSyntax =
+      let (PgDataTypeSyntax _ syntax _) =
+              defaultSqlDataType (Proxy @a) (Proxy @Postgres) False
+      in  syntax
 
 instance (HasDefaultSqlDataType Postgres a, ToField a) => HasSqlValueSyntax PgValueSyntax (PgArray a) where
   sqlValueSyntax = defaultPgValueSyntax
@@ -163,8 +169,7 @@ instance (HasDefaultSqlDataType Postgres a, ToField a) => HasSqlValueSyntax PgVa
 enumType :: (Enum a, Bounded a) => DataType Postgres a
 enumType = DataType intType
 
-textShowType ::
-     (Show a, Read a) => Maybe Word -> DataType Postgres a
+textShowType :: (Show a, Read a) => Maybe Word -> DataType Postgres a
 textShowType size = DataType (varCharType size Nothing)
 
 vectorType :: Typeable a => DataType Postgres a -> DataType Postgres (PgArray a)

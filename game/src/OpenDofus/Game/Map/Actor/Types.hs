@@ -1,4 +1,4 @@
--- Object.hs ---
+-- Types.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
 
@@ -17,23 +17,13 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-module OpenDofus.Game.Object
+module OpenDofus.Game.Map.Actor.Types
   ( module X
-  , GameObject(..)
-  , GameTimer(..)
+  , GameActor(..)
   )
 where
 
-import           OpenDofus.Game.Types          as X
-import           OpenDofus.Prelude
+import           OpenDofus.Game.Map.Actor.PlayerCharacter
+                                               as X
 
-data GameTimer = GameTimer
-    { _gameTimerRemainingTriggers :: !(Maybe Word32)
-    , _gameTimerTriggerInterval   :: {-# UNPACK #-} !GameTime
-    , _gameTimerNextTrigger       :: {-# UNPACK #-} !GameTime
-    }
-
-data GameObject = GameObject
-    { _gameObjectLastUpdate :: {-# UNPACK #-} !GameTime
-    , _gameObjectTimers     :: {-# UNPACK #-} !(Vector GameTimer)
-    }
+data GameActor a = GameActorPC {-# UNPACK #-} !(PlayerCharacter a)

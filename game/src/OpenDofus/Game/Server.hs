@@ -30,12 +30,24 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 
-module OpenDofus.Game.Server where
+module OpenDofus.Game.Server
+  ( module X
+  , GameClient(..)
+  , HasGameClient(..)
+  , GameServer(..)
+  , HasGameServer(..)
+  , GameHandlerCallback
+  , GameClientHandler
+  , GameHandlerInput
+  , mkClient
+  )
+where
 
-import           OpenDofus.Core.Network.Client
-import           OpenDofus.Core.Network.Server
-import           OpenDofus.Core.Network.Types
+import           OpenDofus.Core.Network.Client as X
+import           OpenDofus.Core.Network.Server as X
+import           OpenDofus.Core.Network.Types  as X
 import           OpenDofus.Database
+import           OpenDofus.Game.Map.Types
 import           OpenDofus.Prelude
 
 newtype GameClient =
@@ -46,10 +58,12 @@ newtype GameClient =
 makeClassy ''GameClient
 
 data GameServer = GameServer
-    { _gameServerState      :: {-# UNPACK #-} !(ServerState GameClient)
+    { _gameServerState :: {-# UNPACK #-} !(ServerState GameClient)
     , _gameServerAuthDbPool :: {-# UNPACK #-} !(Pool AuthDbConn)
     , _gameServerGameDbPool :: {-# UNPACK #-} !(Pool GameDbConn)
-    , _gameServerWorldId    :: {-# UNPACK #-} !WorldId
+    , _gameServerWorldId :: {-# UNPACK #-} !WorldId
+    , _gameServerMaps :: !(HashMap MapId
+    (MapController GameClient (HandlerInput GameServer GameClient)))
     }
 
 makeClassy ''GameServer
@@ -94,5 +108,4 @@ instance HasNetworkId GameClient where
 
 {-# INLINE mkClient #-}
 mkClient :: NetworkId -> ClientBuffer -> ClientConnection -> STM GameClient
-mkClient i b c =
-  pure $ GameClient (ClientState b c i)
+mkClient i b c = pure $ GameClient (ClientState b c i)

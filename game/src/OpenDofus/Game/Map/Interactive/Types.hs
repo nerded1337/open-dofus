@@ -1,4 +1,4 @@
--- Interactive.hs ---
+-- Types.hs --
 
 -- Copyright (C) 2020 Nerd Ed
 
@@ -17,10 +17,15 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-module OpenDofus.Game.Map.Interactive
-  ( module X
+module OpenDofus.Game.Map.Interactive.Types
+  ( InteractiveObjectInstance(..)
   )
 where
 
-import           OpenDofus.Game.Map.Interactive.Types
-                                               as X
+import           OpenDofus.Database
+import           OpenDofus.Prelude
+
+data InteractiveObjectInstance = InteractiveObjectInstance
+    { _interactiveObjectInstanceTemplate :: InteractiveObject
+    }
+    deriving (Show)

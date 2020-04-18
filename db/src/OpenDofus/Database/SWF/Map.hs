@@ -39,7 +39,7 @@ import qualified Data.Vector                   as V
 import           System.Directory
 import           OpenDofus.Database.Game.Map
 import qualified OpenDofus.Database.SWF.Reader as SWF
-import           OpenDofus.Prelude       hiding ( Map )
+import           OpenDofus.Prelude
 
 parseFileName :: BS.ByteString -> Either String String
 parseFileName = parseOnly go
@@ -51,32 +51,32 @@ getMapsDate
   -> IO (M.IntMap (String, Int, Int, Int, Int, Int, Bool, Int, T.Text))
 getMapsDate path = fold <$> (traverse go =<< listDirectory path)
  where
-  go fileName = SWF.loadData (path <> "/" <> fileName) $ \mapInfos -> do
+  go fileName = SWF.loadData (path <> "/" <> fileName) $ \mapInfos ->
     let get i = fromMaybe (error (show i)) $ H.lookup i mapInfos
         mdate =
-          fromRight (error "Invalid map file name") $ parseFileName $ BS.pack
-            fileName
-        mId               = SWF.unsafeInt "id" $ get "id"
-        width             = SWF.unsafeInt "width" $ get "width"
-        height            = SWF.unsafeInt "height" $ get "height"
-        backgroundNum     = SWF.unsafeInt "backgroundNum" $ get "backgroundNum"
-        ambianceId        = SWF.unsafeInt "ambianceId" $ get "ambianceId"
-        musicId           = SWF.unsafeInt "musicId" $ get "musicId"
-        bOutdoor          = SWF.unsafeBool "bOutdoor" $ get "bOutdoor"
-        capabilities      = SWF.unsafeInt "capabilities" $ get "capabilities"
-        mapCompressedData = SWF.unsafeString "mapData" $ get "mapData"
-    pure $ M.singleton
-      mId
-      ( mdate
-      , width
-      , height
-      , backgroundNum
-      , ambianceId
-      , musicId
-      , bOutdoor
-      , capabilities
-      , mapCompressedData
-      )
+            fromRight (error "Invalid map file name") $ parseFileName $ BS.pack
+              fileName
+        mId           = SWF.unsafeInt "id" $ get "id"
+        width         = SWF.unsafeInt "width" $ get "width"
+        height        = SWF.unsafeInt "height" $ get "height"
+        backgroundNum = SWF.unsafeInt "backgroundNum" $ get "backgroundNum"
+        ambianceId    = SWF.unsafeInt "ambianceId" $ get "ambianceId"
+        musicId       = SWF.unsafeInt "musicId" $ get "musicId"
+        bOutdoor      = SWF.unsafeBool "bOutdoor" $ get "bOutdoor"
+        capabilities  = SWF.unsafeInt "capabilities" $ get "capabilities"
+        mapCData      = SWF.unsafeString "mapData" $ get "mapData"
+    in  pure $ M.singleton
+          mId
+          ( mdate
+          , width
+          , height
+          , backgroundNum
+          , ambianceId
+          , musicId
+          , bOutdoor
+          , capabilities
+          , mapCData
+          )
 
 getMap
   :: Int -> (String, Int, Int, Int, Int, Int, Bool, Int, T.Text) -> Value -> Map
@@ -86,7 +86,7 @@ getMap mid (d, w, h, bn, aid, _, out, cap, dat) (Object m) =
       y  = SWF.unsafeInt "y" $ get "y"
       sa = SWF.unsafeInt "sa" $ get "sa"
   in  Map (MapId $ fromIntegral mid)
-          (T.pack d)
+          (MapCreationDate $ T.pack d)
           (MapSubAreaPK $ MapSubAreaId $ fromIntegral sa)
           x
           y
@@ -96,7 +96,7 @@ getMap mid (d, w, h, bn, aid, _, out, cap, dat) (Object m) =
           aid
           out
           cap
-          dat
+          (MapCompressedData dat)
           Nothing
 getMap _ _ x = error $ "Unhandled map: " <> show x
 

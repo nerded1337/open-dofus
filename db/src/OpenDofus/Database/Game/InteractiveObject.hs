@@ -67,12 +67,13 @@ data InteractiveObjectType
   | InteractiveObjectTypeCookingPot
   | InteractiveObjectTypeZaapi
   | InteractiveObjectTypeCraftmenList
-  | InteractiveObjectTypeMountPark
+  | InteractiveObjectTypePaddock
   | InteractiveObjectTypeLever
   | InteractiveObjectTypeClassStatue
   deriving stock (Show, Eq, Ord, Enum, Bounded)
   deriving ( ToField
            , FromField
+           , FromBackendRow Postgres
            , HasDefaultSqlDataType Postgres
            , HasSqlValueSyntax PgValueSyntax
            ) via (EnumField InteractiveObjectType)

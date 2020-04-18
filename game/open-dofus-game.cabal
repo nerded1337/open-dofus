@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 21ca4f26b7b1f2e0254fa9d64e2a535b1adf84baa6a15da954bb7aa58a5c054f
+-- hash: df4859fa4b5c5795dca737666f3d966184381ba2b6a7713b4922b6fc5061cee2
 
 name:           open-dofus-game
 version:        0.1.0.0
@@ -29,15 +29,22 @@ executable open-dofus-game
       OpenDofus.Game.Character
       OpenDofus.Game.Frame.Authentication
       OpenDofus.Game.Frame.CharacterSelection
+      OpenDofus.Game.Frame.GameCreation
       OpenDofus.Game.Frame.HelloGame
       OpenDofus.Game.Frame.Logout
       OpenDofus.Game.Map
+      OpenDofus.Game.Map.Actor
+      OpenDofus.Game.Map.Actor.PlayerCharacter
+      OpenDofus.Game.Map.Actor.Types
       OpenDofus.Game.Map.Cell
-      OpenDofus.Game.Map.Instance
+      OpenDofus.Game.Map.Cell.Parser
+      OpenDofus.Game.Map.Cell.Types
       OpenDofus.Game.Map.Interactive
-      OpenDofus.Game.Map.Interactive.Instance
+      OpenDofus.Game.Map.Interactive.Types
+      OpenDofus.Game.Map.Parser
+      OpenDofus.Game.Map.Types
+      OpenDofus.Game.Network
       OpenDofus.Game.Network.Message
-      OpenDofus.Game.Object
       OpenDofus.Game.Server
       OpenDofus.Game.Types
       Paths_open_dofus_game
@@ -68,10 +75,14 @@ executable open-dofus-game
     , pqueue
     , primitive
     , primitive-unlifted
+    , recursion-schemes
     , rio
     , sockets
     , stm
     , text
+    , unagi-chan
+    , unordered-containers
+    , uri-encode
     , uuid
     , vector
   default-language: Haskell2010

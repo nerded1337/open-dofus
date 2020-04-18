@@ -34,13 +34,22 @@ import           Database.Beam.Backend
 import           Database.Beam.Migrate
 import           Database.Beam.Postgres
 import           Database.Beam.Postgres.Syntax
-import           OpenDofus.Prelude       hiding ( Map )
+import           OpenDofus.Prelude
 
 newtype CellId =
   CellId
     { unCellId :: Word32
     }
-  deriving newtype (Show, Ord, Eq, Num, Real, Enum, Integral)
+  deriving newtype ( Show
+                   , Ord
+                   , Eq
+                   , Num
+                   , Real
+                   , Enum
+                   , Integral
+                   , Hashable
+                   , FromBackendRow Postgres
+                   )
 
 newtype MapId =
   MapId
@@ -53,8 +62,41 @@ newtype MapId =
                    , Real
                    , Enum
                    , Integral
+                   , Hashable
                    , HasDefaultSqlDataType Postgres
                    , HasSqlValueSyntax PgValueSyntax
+                   , HasSqlEqualityCheck Postgres
+                   , FromBackendRow Postgres
+                   )
+
+newtype MapCompressedData =
+  MapCompressedData
+    { unMapCompressedData :: Text
+    }
+  deriving newtype ( Show
+                   , HasDefaultSqlDataType Postgres
+                   , HasSqlValueSyntax PgValueSyntax
+                   , FromBackendRow Postgres
+                   )
+
+newtype MapCreationDate =
+  MapCreationDate
+    { unMapCreationDate :: Text
+    }
+  deriving newtype ( Show
+                   , HasDefaultSqlDataType Postgres
+                   , HasSqlValueSyntax PgValueSyntax
+                   , FromBackendRow Postgres
+                   )
+
+newtype MapDataKey =
+  MapDataKey
+    { unMapDataKey :: Text
+    }
+  deriving newtype ( Show
+                   , HasDefaultSqlDataType Postgres
+                   , HasSqlValueSyntax PgValueSyntax
+                   , FromBackendRow Postgres
                    )
 
 newtype MapSuperAreaId =
@@ -68,8 +110,11 @@ newtype MapSuperAreaId =
                    , Real
                    , Enum
                    , Integral
+                   , Hashable
                    , HasDefaultSqlDataType Postgres
                    , HasSqlValueSyntax PgValueSyntax
+                   , HasSqlEqualityCheck Postgres
+                   , FromBackendRow Postgres
                    )
 
 newtype MapAreaId =
@@ -83,8 +128,11 @@ newtype MapAreaId =
                    , Real
                    , Enum
                    , Integral
+                   , Hashable
                    , HasDefaultSqlDataType Postgres
                    , HasSqlValueSyntax PgValueSyntax
+                   , HasSqlEqualityCheck Postgres
+                   , FromBackendRow Postgres
                    )
 
 newtype MapSubAreaId =
@@ -98,15 +146,19 @@ newtype MapSubAreaId =
                    , Real
                    , Enum
                    , Integral
+                   , Hashable
                    , HasDefaultSqlDataType Postgres
                    , HasSqlValueSyntax PgValueSyntax
+                   , HasSqlEqualityCheck Postgres
+                   , FromBackendRow Postgres
                    )
 
-data MapSuperAreaT f =
-  MapSuperArea
+
+data MapSuperAreaT f = MapSuperArea
     { _mapSuperAreaId   :: !(C f MapSuperAreaId)
     , _mapSuperAreaName :: !(C f Text)
-    } deriving (Generic, Beamable)
+    }
+    deriving (Generic, Beamable)
 
 instance Table MapSuperAreaT where
   data PrimaryKey MapSuperAreaT f = MapSuperAreaPK !(C f MapSuperAreaId)
@@ -121,13 +173,12 @@ deriving instance Show MapSuperAreaPK
 
 MapSuperArea (LensFor superAreaId) (LensFor superAreaName) = tableLenses
 
-data MapAreaT f =
-  MapArea
+data MapAreaT f = MapArea
     { _mapAreaId        :: !(C f MapAreaId)
     , _mapAreaName      :: !(C f Text)
     , _mapAreaSuperArea :: !(PrimaryKey MapSuperAreaT f)
     }
-  deriving (Generic, Beamable)
+    deriving (Generic, Beamable)
 
 instance Table MapAreaT where
   data PrimaryKey MapAreaT f = MapAreaPK !(C f MapAreaId)
@@ -143,13 +194,13 @@ deriving instance Show MapArea
 MapArea (LensFor areaId) (LensFor areaName) (MapSuperAreaPK (LensFor areaSuperArea))
   = tableLenses
 
-data MapSubAreaT f =
-  MapSubArea
+data MapSubAreaT f = MapSubArea
     { _mapSubAreaId     :: !(C f MapSubAreaId)
     , _mapSubAreaName   :: !(C f Text)
     , _mapSubAreaArea   :: !(PrimaryKey MapAreaT f)
     , _mapSubAreaMusics :: !(C f (Vector Int))
-    } deriving (Generic, Beamable)
+    }
+    deriving (Generic, Beamable)
 
 instance Table MapSubAreaT where
   data PrimaryKey MapSubAreaT f = MapSubAreaPK !(C f MapSubAreaId)
@@ -165,12 +216,11 @@ deriving instance Show MapSubAreaPK
 MapSubArea (LensFor subAreaId) (LensFor subAreaName) (MapAreaPK (LensFor subAreaArea)) (LensFor subAreaMusics)
   = tableLenses
 
-data MapSubAreaNeighbourT f =
-  MapSubAreaNeighbour
+data MapSubAreaNeighbourT f = MapSubAreaNeighbour
     { _mapSubAreaNeighbourOrigin      :: !(PrimaryKey MapSubAreaT f)
     , _mapSubAreaNeighbourDestination :: !(PrimaryKey MapSubAreaT f)
     }
-  deriving (Generic, Beamable)
+    deriving (Generic, Beamable)
 
 instance Table MapSubAreaNeighbourT where
   data PrimaryKey MapSubAreaNeighbourT
@@ -191,23 +241,22 @@ deriving instance Show MapSubAreaNeighbourId
 MapSubAreaNeighbour (MapSubAreaPK (LensFor subAreaNeighbourOriginSubAreaId)) (MapSubAreaPK (LensFor subAreaNeighbourDestinationSubAreaId))
   = tableLenses
 
-data MapT f =
-  Map
-    { _mapId            :: !(C f MapId)
-    , _mapDate          :: !(C f Text)
-    , _mapSubArea       :: !(PrimaryKey MapSubAreaT f)
-    , _mapX             :: !(C f Int)
-    , _mapY             :: !(C f Int)
-    , _mapWidth         :: !(C f Int)
-    , _mapHeight        :: !(C f Int)
-    , _mapBackgroundNum :: !(C f Int)
-    , _mapAmbianceId    :: !(C f Int)
-    , _mapIsOutdoor     :: !(C f Bool)
-    , _mapCapabilities  :: !(C f Int)
-    , _mapData          :: !(C f Text)
-    , _mapDataKey       :: !(C f (Maybe Text))
+data MapT f = Map
+    { _mapId             :: !(C f MapId)
+    , _mapDate           :: !(C f MapCreationDate)
+    , _mapSubArea        :: !(PrimaryKey MapSubAreaT f)
+    , _mapX              :: !(C f Int)
+    , _mapY              :: !(C f Int)
+    , _mapWidth          :: !(C f Int)
+    , _mapHeight         :: !(C f Int)
+    , _mapBackgroundNum  :: !(C f Int)
+    , _mapAmbianceId     :: !(C f Int)
+    , _mapIsOutdoor      :: !(C f Bool)
+    , _mapCapabilities   :: !(C f Int)
+    , _mapCompressedData :: !(C f MapCompressedData)
+    , _mapDataKey        :: !(C f (Maybe MapDataKey))
     }
-  deriving (Generic, Beamable)
+    deriving (Generic, Beamable)
 
 instance Table MapT where
   data PrimaryKey MapT f = MapPK !(C f MapId)
@@ -220,5 +269,5 @@ deriving instance Show Map
 type MapPK = PrimaryKey MapT Identity
 deriving instance Show MapPK
 
-Map (LensFor mapId) (LensFor mapDate) (MapSubAreaPK (LensFor mapSubAreaId)) (LensFor mapX) (LensFor mapY) (LensFor mapWidth) (LensFor mapHeight) (LensFor mapBackgroundNum) (LensFor mapAmbianceId) (LensFor mapIsOutdoor) (LensFor mapCapabilities) (LensFor mapData) (LensFor mapDataKey)
+Map (LensFor mapId) (LensFor mapDate) (MapSubAreaPK (LensFor mapSubAreaId)) (LensFor mapX) (LensFor mapY) (LensFor mapWidth) (LensFor mapHeight) (LensFor mapBackgroundNum) (LensFor mapAmbianceId) (LensFor mapIsOutdoor) (LensFor mapCapabilities) (LensFor mapCompressedData) (LensFor mapDataKey)
   = tableLenses

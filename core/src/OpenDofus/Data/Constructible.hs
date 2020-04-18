@@ -37,6 +37,8 @@ import qualified Data.Vector.Unboxed        as VU
 import           RIO
 import qualified RIO.Text                   as T
 
+infixr 5 :-
+
 pattern (:-) :: Constructible a => Elem a -> a -> a
 pattern x :- xs <- (uncons -> Just (x, xs))
   where x :- xs = cons x xs

@@ -1,4 +1,4 @@
--- Instance.hs ---
+-- GameCreation.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
 
@@ -17,21 +17,24 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE TemplateHaskell            #-}
-
-module OpenDofus.Game.Map.Instance
-  ( module X
-  , MapInstance(..)
-  , HasMapInstance(..)
+module OpenDofus.Game.Frame.GameCreation
+  ( gameCreationHandler
   )
 where
 
-import           OpenDofus.Game.Map.Cell       as X
-import           OpenDofus.Database
-import           OpenDofus.Prelude       hiding ( Map )
 
-data MapInstance = MapInstance
-    { _mapInstanceTemplate :: Map
-    }
+import           OpenDofus.Core.Network.Server
+import           OpenDofus.Data.Constructible
+import           OpenDofus.Game.Map.Actor
+import           OpenDofus.Game.Network.Message
+import           OpenDofus.Game.Server
+import           OpenDofus.Prelude
 
-makeClassy ''MapInstance
+gameCreationHandler :: PlayerCharacter GameClient -> GameClientHandler
+gameCreationHandler pc = MessageHandlerCont $ go =<< asks
+  (view handlerInputMessage)
+ where
+  go (ClientSent ('G' :- 'C' :- _)) = do
+    sendMessage GameCreationSuccess
+    pure $ gameCreationHandler pc
+  go _ = pure $ gameCreationHandler pc

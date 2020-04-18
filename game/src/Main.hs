@@ -18,14 +18,17 @@
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications  #-}
 
 module Main where
 
+import           Data.HashMap.Strict           as HM
 import qualified Data.ByteString.Lazy.Char8    as BS
 import           Database.Beam.Postgres
 import           OpenDofus.Core.Network.Server
 import           OpenDofus.Database
 import           OpenDofus.Game.Frame.HelloGame
+import           OpenDofus.Game.Map
 import           OpenDofus.Game.Server
 import           OpenDofus.Prelude
 
@@ -43,12 +46,30 @@ app = do
     $ ConnectInfo "localhost" 5432 "nerded" "nerded" "opendofus_auth"
   gameDbPool <- createConnPool
     $ ConnectInfo "localhost" 5432 "nerded" "nerded" "opendofus_game"
+  logInfo "Loading game maps"
+  maps <- runReaderT
+    (do
+      templates <- runVolatile @GameDbConn $ do
+        i <- getMapIds
+        traverse getMapById i
+      fmap rights $ traverse initializeMap $ catMaybes templates
+    )
+    gameDbPool
+  logInfo "Running map controllers"
+  mapCtls <-
+    HM.fromList
+    .   fmap
+          ( (\c -> (c ^. (mapControllerMap . mapInstanceTemplate . mapId), c))
+          . fst
+          )
+    <$> traverse runMap maps
   serv <-
     GameServer
     <$> mkServer 8081 1000 128 mkClient
     <*> pure authDbPool
     <*> pure gameDbPool
     <*> pure (WorldId 604)
+    <*> pure mapCtls
   logInfo "Starting game server"
   result <- startServer serv (loggingHandler <> helloGameHandler)
   case result of

@@ -107,7 +107,7 @@ getSpell sid (Object content) =
       (SWF.unsafeString "description" $ H.lookupDefault (String "") "d" content)
     makeLevel l = getSpellLevel spell l
       $ H.lookupDefault (Object mempty) ("l" <> T.pack (show l)) content
-    levels = catMaybes
+    lvls = catMaybes
       [ makeLevel 1
       , makeLevel 2
       , makeLevel 3
@@ -116,6 +116,6 @@ getSpell sid (Object content) =
       , makeLevel 6
       ]
   in
-    (spell, levels)
+    (spell, lvls)
 
 getSpell sid x = error $ "Unhandled spell type: " <> show sid <> ", " <> show x

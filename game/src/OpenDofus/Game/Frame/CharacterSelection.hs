@@ -33,6 +33,8 @@ import           OpenDofus.Core.Network.Server
 import           OpenDofus.Data.Constructible
 import           OpenDofus.Database
 import           OpenDofus.Game.Character
+import           OpenDofus.Game.Frame.GameCreation
+import           OpenDofus.Game.Map.Actor
 import           OpenDofus.Game.Network.Message
 import           OpenDofus.Game.Server
 import           OpenDofus.Prelude
@@ -50,7 +52,7 @@ parseCharacterCreationInfos :: Parser CharacterCreationInfos
 parseCharacterCreationInfos =
   let dec = A.char '|' *> signed decimal
   in  (,,,,,)
-        <$> (CharacterName . decodeByteString . BS.fromStrict <$> A.takeTill
+        <$> (CharacterName . decodeLazyByteString . BS.fromStrict <$> A.takeTill
               (== '|')
             )
         <*> (BreedId <$> dec)
@@ -119,5 +121,15 @@ characterSelectionHandler acc = MessageHandlerCont $ go =<< ask
         sendMessage $ CharacterCreationFailure
           CharacterCreationFailureReasonInvalidInfos
         pure $ characterSelectionHandler acc
-  go (ClientSent ('A' :- ('S' :- _))) = pure $ characterSelectionHandler acc
+  go (ClientSent ('A' :- ('S' :- providedCharacterId))) =
+    case AL.parse (decimal @Word64) providedCharacterId of
+      AL.Done _ cid -> do
+        gc       <- asks (view handlerInputClient)
+        loadedPc <- loadPlayerCharacter (Just gc) (CharacterId cid)
+        case loadedPc of
+          Just pc -> do
+            sendMessage $ CharacterSelectionSuccess pc
+            pure $ gameCreationHandler pc
+          Nothing -> pure $ characterSelectionHandler acc
+      _ -> pure $ characterSelectionHandler acc
   go _ = pure $ characterSelectionHandler acc
