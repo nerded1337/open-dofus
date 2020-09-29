@@ -291,7 +291,15 @@ evaluate (Operation operation) = do
 
     (ActionToNumber, _) -> pure ()
 
-    (x             , _) -> error $ "UNKNOWN ACTION: " <> show x
+    (ActionAdd2, StackVal b :- (StackVal a :- xs)) -> do
+      a' <- pushToAeson a
+      b' <- pushToAeson b
+      let z = case (a', b') of
+            (A.String x, A.String y) -> StackVal (PushString $ x <> y)
+            _ -> error $ "UNKNOWN Add: " <> show b' <> ", " <> show a'
+      put (Evaluation p tbl (z :- xs) idx toMember)
+
+    (x, y) -> error $ "UNKNOWN ACTION: " <> show x <> ", " <> show (S.take 2 y)
 
 evaluate x = error $ "Unhandled action: " <> show x
 
