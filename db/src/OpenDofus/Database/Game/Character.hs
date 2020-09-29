@@ -97,7 +97,7 @@ newtype GfxId =
 
 newtype GfxSize =
   GfxSize
-    { unSkinSize :: Word32
+    { unGfxSize :: Word32
     }
   deriving newtype ( Show
                    , Eq
@@ -204,14 +204,7 @@ deriving instance Show Character
 type CharacterPK = PrimaryKey CharacterT Identity
 deriving instance Show CharacterPK
 
-Character
-  (LensFor characterId)
-  (LensFor characterName)
-  (BreedPK (LensFor characterBreedId))
-  (AccountPK (LensFor characterAccountId))
-  (LensFor characterLevel)
-  (LensFor characterMaxLevel)
-  (LensFor characterExperience)
+Character (LensFor characterId) (LensFor characterName) (BreedPK (LensFor characterBreedId)) (AccountPK (LensFor characterAccountId)) (LensFor characterLevel) (LensFor characterMaxLevel) (LensFor characterExperience)
   = tableLenses
 
 data CharacterPositionT f = CharacterPosition
@@ -233,10 +226,7 @@ deriving instance Show CharacterPosition
 type CharacterPositionPK = PrimaryKey CharacterPositionT Identity
 deriving instance Show CharacterPositionPK
 
-CharacterPosition
-  (CharacterPK (LensFor characterPositionCharacterId))
-  (MapPK (LensFor characterPositionMapId))
-  (LensFor characterPositionCellId)
+CharacterPosition (CharacterPK (LensFor characterPositionCharacterId)) (MapPK (LensFor characterPositionMapId)) (LensFor characterPositionCellId)
   = tableLenses
 
 data CharacterLookT f = CharacterLook
@@ -262,14 +252,7 @@ deriving instance Show CharacterLook
 type CharacterLookPK = PrimaryKey CharacterLookT Identity
 deriving instance Show CharacterLookPK
 
-CharacterLook
-  (CharacterPK (LensFor characterLookCharacterId))
-  (LensFor characterLookGfxId)
-  (LensFor characterLookGfxSize)
-  (LensFor characterLookSex)
-  (LensFor characterLookFirstColor)
-  (LensFor characterLookSecondColor)
-  (LensFor characterLookThirdColor)
+CharacterLook (CharacterPK (LensFor characterLookCharacterId)) (LensFor characterLookGfxId) (LensFor characterLookGfxSize) (LensFor characterLookSex) (LensFor characterLookFirstColor) (LensFor characterLookSecondColor) (LensFor characterLookThirdColor)
   = tableLenses
 
 data CharacterCaracteristicT f = CharacterCaracteristic
@@ -286,9 +269,10 @@ instance Table CharacterCaracteristicT where
                                      !(PrimaryKey EffectT f) !(C f CharacterCaracteristicSource)
              deriving (Generic, Beamable)
   primaryKey =
-    CharacterCharacteristicPK <$> _characterCaracteristicCharacterId <*>
-    _characterCaracteristicEffectId <*>
-    _characterCaracteristicSource
+    CharacterCharacteristicPK
+      <$> _characterCaracteristicCharacterId
+      <*> _characterCaracteristicEffectId
+      <*> _characterCaracteristicSource
 
 type CharacterCaracteristic = CharacterCaracteristicT Identity
 deriving instance Show CharacterCaracteristic
@@ -296,9 +280,5 @@ deriving instance Show CharacterCaracteristic
 type CharacterCharacteristicPK = PrimaryKey CharacterCaracteristicT Identity
 deriving instance Show CharacterCharacteristicPK
 
-CharacterCaracteristic
-  (CharacterPK (LensFor characterCaracteristicCharacterId))
-  (EffectPK (LensFor characterCaracteristicEffectId))
-  (LensFor characterCaracteristicSource)
-  (LensFor characterCaracteristicValue)
+CharacterCaracteristic (CharacterPK (LensFor characterCaracteristicCharacterId)) (EffectPK (LensFor characterCaracteristicEffectId)) (LensFor characterCaracteristicSource) (LensFor characterCaracteristicValue)
   = tableLenses

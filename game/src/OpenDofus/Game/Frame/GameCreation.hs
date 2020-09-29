@@ -22,10 +22,11 @@ module OpenDofus.Game.Frame.GameCreation
   )
 where
 
-
 import           OpenDofus.Core.Network.Server
 import           OpenDofus.Data.Constructible
-import           OpenDofus.Game.Map.Actor
+import           OpenDofus.Database
+import           OpenDofus.Game.Frame.Map
+import           OpenDofus.Game.Map
 import           OpenDofus.Game.Network.Message
 import           OpenDofus.Game.Server
 import           OpenDofus.Prelude
@@ -35,6 +36,29 @@ gameCreationHandler pc = MessageHandlerCont $ go =<< asks
   (view handlerInputMessage)
  where
   go (ClientSent ('G' :- 'C' :- _)) = do
-    sendMessage GameCreationSuccess
-    pure $ gameCreationHandler pc
+    let mid = pc ^. playerCharacterCharacterPosition . characterPositionMapId
+    mapCtls <- asks (view (handlerInputServer . gameServerMaps))
+    case mapCtls ^. at mid of
+      Just mapCtl -> do
+        let gameDataMapMsg =
+              GameDataMap
+                  (mapCtl ^. mapControllerMap . mapInstanceTemplate . mapId)
+                  (  mapCtl
+                  ^. mapControllerMap
+                  .  mapInstanceTemplate
+                  .  mapCreationDate
+                  )
+                <$> (  mapCtl
+                    ^. mapControllerMap
+                    .  mapInstanceTemplate
+                    .  mapDataKey
+                    )
+        case gameDataMapMsg of
+          Just msg -> do
+            pcRef <- traverse (newIORef . Just) pc
+            raiseMapEvent mapCtl $ MapEventSpawnActor $ GameActorPC pcRef
+            sendMessages [GameCreationSuccess, msg, GameDataSuccess]
+            pure $ mapHandler pcRef mapCtl
+          Nothing -> pure $ MessageHandlerDisconnect mempty
+      Nothing -> pure $ MessageHandlerDisconnect mempty
   go _ = pure $ gameCreationHandler pc

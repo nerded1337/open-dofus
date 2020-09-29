@@ -54,9 +54,7 @@ prepareCellData !x = go <$> x
 
 {-# INLINE parseCell #-}
 parseCell
-  :: CellId
-  -> [Word8]
-  -> (CellId, Maybe (CellT (Maybe InteractiveObjectGfxId) Unit))
+  :: CellId -> [Word8] -> (CellId, Maybe (CellT (Maybe InteractiveObjectGfxId)))
       --       0  1  2  3  4  5  6  7  8  9
 parseCell !cid !x = go (prepareCellData x)
  where
@@ -109,6 +107,5 @@ parseCell !cid !x = go (prepareCellData x)
             then Just (InteractiveObjectGfxId $ fromIntegral lo2n)
             else Nothing
           )
-          ()
       )
   go _ = error "Invalid cell data"

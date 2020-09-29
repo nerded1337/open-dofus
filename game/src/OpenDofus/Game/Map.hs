@@ -18,30 +18,50 @@
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 {-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE ConstraintKinds   #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE TypeApplications  #-}
 
 module OpenDofus.Game.Map
   ( module X
   , initializeMap
   , runMap
+  , raiseMapEvent
+  , dispatchToMap
   )
 where
 
 import           Control.Concurrent             ( forkIO )
 import           Control.Concurrent.Chan.Unagi.NoBlocking
                                                as U
-import           Data.ByteString.Char8         as BS
+import           Data.HashMap.Strict           as HM
 import           OpenDofus.Database
 import           OpenDofus.Game.Map.Parser     as X
+import           OpenDofus.Game.Network.Message
 import           OpenDofus.Game.Server
 import           OpenDofus.Prelude
 
+data MapEventArgs = MapEventArgs
+    { _mapEventArgsEvent :: !(MapEvent GameClientController)
+    , _mapEventArgsCtl   :: {-# UNPACK #-} !GameMapController
+    }
+
+makeClassy ''MapEventArgs
+
+instance Show MapEventArgs where
+  show (MapEventArgs event _) = show event
+
+type MapEventReader m = MonadReader MapEventArgs m
+
+{-# INLINE raiseMapEvent #-}
+raiseMapEvent :: MonadIO m => MapController a b -> b -> m ()
+raiseMapEvent !ctl = liftIO . U.writeChan (ctl ^. mapControllerEventIn)
+
+{-# INLINE initializeMap #-}
 initializeMap
-  :: forall a b m
-   . (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m)
+  :: (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m)
   => Map
   -> m (Either Text (MapInstance b))
 initializeMap m = case parseMap m of
@@ -55,35 +75,81 @@ initializeMap m = case parseMap m of
   Nothing -> pure $ Left $ "Probably missing data key for map: " <> showText
     (m ^. mapId)
 
+{-# INLINE runMap #-}
 runMap
   :: MonadIO m
-  => MapInstance GameClient
-  -> m (MapController GameClient GameHandlerInput, ThreadId)
+  => MapInstance GameClientController
+  -> m (GameMapController, ThreadId)
 runMap m = do
   (inChan, outChan) <- liftIO U.newChan
-  let mapCtl = MapController m inChan outChan
-  tid <- runMapController mapCtl
-  pure (mapCtl, tid)
+  let ctl = MapController m inChan outChan
+  tid <- runMapController ctl
+  pure (ctl, tid)
 
-runMapController
-  :: MonadIO m => MapController GameClient GameHandlerInput -> m ThreadId
-runMapController mapCtl = liftIO $ forkIO $ go mapInitialHandler =<< next
+{-# INLINE runMapController #-}
+runMapController :: MonadIO m => GameMapController -> m ThreadId
+runMapController !ctl = liftIO $ forkIO $ runOpenDofusApp True $ go =<< next
  where
-  next = U.tryReadChan (mapCtl ^. mapControllerEventOut)
-  go !h !nextElement = do
-    e <- tryRead nextElement
+  next = liftIO $ U.tryReadChan (ctl ^. mapControllerEventOut)
+  go !nextElement = do
+    e <- liftIO $ tryRead nextElement
     case e of
       Just mapEvent -> do
-        h' <- runMessageHandler h mapEvent
-        go h' =<< next
+        logInfo
+          $  "Processing map event: mapId="
+          <> displayShow (ctl ^. mapControllerMap . mapInstanceTemplate . mapId)
+          <> ", event="
+          <> displayShow mapEvent
+        runReaderT applyMapEvent $ MapEventArgs mapEvent ctl
+        go =<< next
       Nothing -> do
         threadDelay (1000000 `quot` 128)
-        go h nextElement
+        go nextElement
 
-mapInitialHandler :: GameClientHandler
-mapInitialHandler = MessageHandlerCont go
+{-# INLINE dispatchToMap #-}
+dispatchToMap :: (MonadIO m, MapEventReader m, ToNetwork a) => a -> m ()
+dispatchToMap !msg = do
+  ctl <- asks (view mapEventArgsCtl)
+  go $ ctl ^. mapControllerMap . mapInstanceActors
+  where go = traverse_ (dispatchToActor msg) <=< readIORef
+
+{-# INLINE dispatchToActor #-}
+dispatchToActor
+  :: (MonadIO m, MapEventReader m, ToNetwork a)
+  => a
+  -> GameActor GameClientController
+  -> m ()
+dispatchToActor !msg =
+  let doSend = traverse_ (runReaderT (sendMessage msg))
+      readController =
+          readIORef
+            . controller @(GameActor GameClientController) @GameClientController
+  in  doSend <=< readController
+
+{-# INLINE readActors #-}
+readActors
+  :: (MonadIO m, MapEventReader m) => m [GameActor GameClientController]
+readActors = do
+  ioActors <- asks
+    (view $ mapEventArgsCtl . mapControllerMap . mapInstanceActors)
+  HM.elems <$> readIORef ioActors
+
+{-# INLINE applyMapEvent #-}
+applyMapEvent :: (MonadIO m, MapEventReader m) => m ()
+applyMapEvent = go =<< asks (view mapEventArgsEvent)
  where
-  go = do
-    msg <- asks (view handlerInputMessage)
-    liftIO $ BS.putStrLn $ "Map handling: " <> showByteString msg
-    pure mapInitialHandler
+  go (MapEventSpawnActor actor) = do
+    actors <- asks
+      (view $ mapEventArgsCtl . mapControllerMap . mapInstanceActors)
+    modifyIORef' actors (HM.insert (actor ^. to actorId) actor)
+    dispatchToMap (MapActorSpawn [actor])
+
+  go (MapEventDespawnActor actor) = do
+    actors <- asks
+      (view $ mapEventArgsCtl . mapControllerMap . mapInstanceActors)
+    modifyIORef' actors (HM.delete (actor ^. to actorId))
+    dispatchToMap (MapActorDespawn [actor])
+
+  go (MapEventDispatchInformations actor) = do
+    actors <- readActors
+    dispatchToActor (MapActorSpawn actors) actor

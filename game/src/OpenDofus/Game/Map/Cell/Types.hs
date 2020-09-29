@@ -38,14 +38,11 @@ module OpenDofus.Game.Map.Cell.Types
   )
 where
 
-import           Data.HashMap.Strict           as HM
 import           OpenDofus.Database
-import           OpenDofus.Game.Map.Actor
 import           OpenDofus.Game.Map.Interactive
 import           OpenDofus.Prelude
 
-type Cell a
-  = CellT (Maybe InteractiveObjectInstance) (HM.HashMap ActorId (GameActor a))
+type Cell a = CellT (Maybe InteractiveObjectInstance)
 
 data CellMovementType = CellMovementTypeNonWalkable
     | CellMovementTypeWalkable
@@ -73,45 +70,24 @@ instance Enum CellMovementType where
   fromEnum CellMovementTypeUnknown6    = 6
   fromEnum CellMovementTypePath        = 7
 
-data CellT a b = Cell
-    { _mapCellId                      :: {-# UNPACK #-} !CellId
-    , _mapCellActive                  :: !Bool
-    , _mapCellLineOfSight             :: !Bool
-    , _mapCellLayerGroundRot          :: {-# UNPACK #-} !Word8
-    , _mapCellGroundLevel             :: {-# UNPACK #-} !Word8
-    , _mapCellMovement                :: !CellMovementType
-    , _mapCellLayerGroundNum          :: {-# UNPACK #-} !Word16
-    , _mapCellGroundSlope             :: {-# UNPACK #-} !Word8
-    , _mapCellLayerGroundFlip         :: !Bool
-    , _mapCellLayerObject1Num         :: {-# UNPACK #-} !Word16
-    , _mapCellLayerObject1Rot         :: {-# UNPACK #-} !Word8
-    , _mapCellLayerObject1Flip        :: !Bool
-    , _mapCellLayerObject2Flip        :: !Bool
-    , _mapCellLayerObject2Interactive :: !Bool
-    , _mapCellLayerObject2Num         :: {-# UNPACK #-} !Word16
-    , _mapCellInteractiveObjects      :: !a
-    , _mapCellActors                  :: !b
+data CellT a = Cell
+    { _cellId                      :: {-# UNPACK #-} !CellId
+    , _cellActive                  :: !Bool
+    , _cellLineOfSight             :: !Bool
+    , _cellLayerGroundRot          :: {-# UNPACK #-} !Word8
+    , _cellGroundLevel             :: {-# UNPACK #-} !Word8
+    , _cellMovement                :: !CellMovementType
+    , _cellLayerGroundNum          :: {-# UNPACK #-} !Word16
+    , _cellGroundSlope             :: {-# UNPACK #-} !Word8
+    , _cellLayerGroundFlip         :: !Bool
+    , _cellLayerObject1Num         :: {-# UNPACK #-} !Word16
+    , _cellLayerObject1Rot         :: {-# UNPACK #-} !Word8
+    , _cellLayerObject1Flip        :: !Bool
+    , _cellLayerObject2Flip        :: !Bool
+    , _cellLayerObject2Interactive :: !Bool
+    , _cellLayerObject2Num         :: {-# UNPACK #-} !Word16
+    , _cellInteractiveObjects      :: !a
     }
     deriving stock (Show, Functor, Foldable, Traversable)
 
 makeClassy ''CellT
-
-instance Bifunctor CellT where
-  {-# INLINE bimap #-}
-  bimap f g c = c
-    { _mapCellInteractiveObjects = f $ _mapCellInteractiveObjects c
-    , _mapCellActors             = g $ _mapCellActors c
-    }
-
-instance Bifoldable CellT where
-  {-# INLINE bifoldMap #-}
-  bifoldMap f g c =
-    f (c ^. mapCellInteractiveObjects) <> g (c ^. mapCellActors)
-
-instance Bitraversable CellT where
-  {-# INLINE bitraverse #-}
-  bitraverse f g c =
-    let a' = f $ c ^. mapCellInteractiveObjects
-        b' = g $ c ^. mapCellActors
-        go x y = bimap (const x) (const y) c
-    in  go <$> a' <*> b'

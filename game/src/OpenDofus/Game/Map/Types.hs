@@ -44,6 +44,7 @@ import           Data.HashMap.Strict           as HM
 import           OpenDofus.Database
 import           OpenDofus.Game.Map.Actor      as X
 import           OpenDofus.Game.Map.Cell       as X
+import           OpenDofus.Game.Map.Event      as X
 import           OpenDofus.Game.Map.Interactive
                                                as X
 import           OpenDofus.Prelude
@@ -55,7 +56,8 @@ type MapInstance a
 
 data MapInstanceT a b = MapInstance
     { _mapInstanceTemplate :: {-# UNPACK #-} !Map
-    , _mapInstanceCells    :: !(HM.HashMap CellId (CellT a b))
+    , _mapInstanceCells    :: !(HM.HashMap CellId (CellT a))
+    , _mapInstanceActors   :: !b
     }
     deriving stock (Show, Functor, Foldable, Traversable)
 
@@ -63,16 +65,20 @@ makeClassy ''MapInstanceT
 
 instance Bifunctor MapInstanceT where
   {-# INLINE bimap #-}
-  bimap f g m = m { _mapInstanceCells = bimap f g <$> _mapInstanceCells m }
+  bimap f g m = m { _mapInstanceCells  = fmap f <$> _mapInstanceCells m
+                  , _mapInstanceActors = g $ _mapInstanceActors m
+                  }
 
 instance Bifoldable MapInstanceT where
   {-# INLINE bifoldMap #-}
-  bifoldMap f g m = foldMap (bifoldMap f g) $ m ^. mapInstanceCells
+  bifoldMap f g m =
+    foldMap (f . view cellInteractiveObjects) (m ^. mapInstanceCells)
+      <> g (m ^. mapInstanceActors)
 
 instance Bitraversable MapInstanceT where
   {-# INLINE bitraverse #-}
-  bitraverse f g (MapInstance x y) =
-    MapInstance x <$> traverse (bitraverse f g) y
+  bitraverse f g (MapInstance x y z) =
+    MapInstance x <$> traverse (traverse f) y <*> g z
 
 data MapController a b = MapController
     { _mapControllerMap      :: !(MapInstance a)

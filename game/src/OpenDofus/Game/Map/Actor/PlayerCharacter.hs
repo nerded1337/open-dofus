@@ -36,14 +36,48 @@ module OpenDofus.Game.Map.Actor.PlayerCharacter
 where
 
 import           OpenDofus.Database
+import           OpenDofus.Game.Map.Actor.Types
 import           OpenDofus.Prelude
 
 data PlayerCharacter a = PlayerCharacter
-    { _playerCharacterBaseCharacter :: {-# UNPACK #-} !Character
-    , _playerCharacterPosition      :: {-# UNPACK #-} !CharacterPosition
-    , _playerCharacterCharacterLook :: {-# UNPACK #-} !CharacterLook
-    , _playerCharacterController    :: !(TVar (Maybe a))
+    { _playerCharacterBaseCharacter     :: {-# UNPACK #-} !Character
+    , _playerCharacterCharacterPosition :: {-# UNPACK #-} !CharacterPosition
+    , _playerCharacterCharacterLook     :: {-# UNPACK #-} !CharacterLook
+    , _playerCharacterDirection         :: !Direction
+    , _playerCharacterRestrictions      :: {-# UNPACK #-} !ActorRestrictionSet
+    , _playerCharacterController        :: !a
     }
-    deriving stock (Generic)
+    deriving stock (Generic, Functor, Foldable, Traversable)
 
 makeClassy ''PlayerCharacter
+
+instance Show (PlayerCharacter a) where
+  show (PlayerCharacter c cp cl _ r _) =
+    "PlayerCharacter {"
+      <> show c
+      <> ", "
+      <> show cp
+      <> ", "
+      <> show cl
+      <> ", "
+      <> show r
+      <> "}"
+
+instance HasActorId (PlayerCharacter a) where
+  {-# INLINE actorId #-}
+  actorId pc =
+    ActorId $ unCharacterId $ pc ^. playerCharacterBaseCharacter . characterId
+
+instance HasPosition (PlayerCharacter a) where
+  {-# INLINE position #-}
+  position pc =
+    let pcPos = pc ^. playerCharacterCharacterPosition
+    in  (pcPos ^. characterPositionMapId, pcPos ^. characterPositionCellId)
+
+instance HasDirection (PlayerCharacter a) where
+  {-# INLINE direction #-}
+  direction = view playerCharacterDirection
+
+instance HasController (PlayerCharacter a) a where
+  {-# INLINE controller #-}
+  controller = view playerCharacterController

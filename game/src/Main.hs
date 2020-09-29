@@ -77,4 +77,4 @@ app = do
     Left  err -> logWarn $ "Failed to start server: " <> displayShow err
 
 main :: IO ()
-main = runOpenDofusApp False app
+main = runOpenDofusApp True app

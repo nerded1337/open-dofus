@@ -72,19 +72,21 @@ populateGameDb
   => FilePath
   -> m ()
 populateGameDb path = do
-  let path' = path <> "/lang/swf"
-      runQ  = runSerializable @GameDbConn @m . fromPg
-  ss            <- liftIO $ loadSpells $ path' <> "/spells_fr_350.swf"
-  efs           <- liftIO $ loadEffects $ path' <> "/effects_fr_266.swf"
-  bds           <- liftIO $ loadBreeds $ path' <> "/classes_fr_180.swf"
-  js            <- liftIO $ loadJobs $ path' <> "/jobs_fr_143.swf"
-  sks           <- liftIO $ loadSkills $ path' <> "/skills_fr_286.swf"
-  (ios, iogfxs) <-
-    liftIO $ loadInteractiveObjects $ path' <> "/interactiveobjects_fr_198.swf"
+  let path'   = path <> "/lang/swf"
+      version = "1006"
+      mkPath x = path' <> x <> "_" <> version <> ".swf"
+      runQ = runSerializable @GameDbConn @m . fromPg
+  ss            <- liftIO $ loadSpells $ mkPath "/spells_fr"
+  efs           <- liftIO $ loadEffects $ mkPath "/effects_fr"
+  bds           <- liftIO $ loadBreeds $ mkPath "/classes_fr"
+  js            <- liftIO $ loadJobs $ mkPath "/jobs_fr"
+  sks           <- liftIO $ loadSkills $ mkPath "/skills_fr"
+  (ios, iogfxs) <- liftIO $ loadInteractiveObjects $ mkPath
+    "/interactiveobjects_fr"
   (ist, is, it, its) <- liftIO
-    $ loadItems (path' <> "/items_fr_449.swf") (path' <> "/itemstats_fr_3.swf")
+    $ loadItems (mkPath "/items_fr") (mkPath "/itemstats_fr")
   (ms, msupas, mas, msubas) <- liftIO
-    $ loadMaps (path <> "/maps") (path' <> "/maps_fr_366.swf")
+    $ loadMaps (path <> "/maps") (mkPath "/maps_fr")
   runQ $ traverse_
     (\(sk, skc) -> do
       runInsert $ insert (gameDb ^. skill) $ insertValues [sk]

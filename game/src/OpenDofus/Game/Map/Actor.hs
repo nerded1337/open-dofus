@@ -19,7 +19,9 @@
 
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE TemplateHaskell            #-}
@@ -27,40 +29,47 @@
 
 module OpenDofus.Game.Map.Actor
   ( module X
-  , ActorId(..)
+  , GameActor(..)
   , loadPlayerCharacter
   )
 where
 
 import           OpenDofus.Database
+import           OpenDofus.Game.Map.Actor.PlayerCharacter
+                                               as X
 import           OpenDofus.Game.Map.Actor.Types
                                                as X
 import           OpenDofus.Prelude
 
-newtype ActorId =
-  ActorId
-    { unActorId :: Word64
-    }
-  deriving newtype ( Show
-                   , Eq
-                   , Ord
-                   , Num
-                   , Real
-                   , Enum
-                   , Integral
-                   , Hashable
-                   )
+data GameActor a =
+  GameActorPC (PlayerCharacter a)
+  deriving (Show)
 
+instance HasActorId (GameActor a) where
+  {-# INLINE actorId #-}
+  actorId (GameActorPC pc) = pc ^. to actorId
+
+instance HasPosition (GameActor a) where
+  {-# INLINE position #-}
+  position (GameActorPC pc) = pc ^. to position
+
+instance HasDirection (GameActor a) where
+  {-# INLINE direction #-}
+  direction (GameActorPC pc) = pc ^. to direction
+
+instance HasController (GameActor a) a where
+  {-# INLINE controller #-}
+  controller (GameActorPC pc) = pc ^. to controller
+
+{-# INLINE loadPlayerCharacter #-}
 loadPlayerCharacter
-  :: forall a b m
-   . (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m)
-  => Maybe b
+  :: (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m)
+  => controller
   -> CharacterId
-  -> m (Maybe (PlayerCharacter b))
+  -> m (Maybe (PlayerCharacter controller))
 loadPlayerCharacter gc cid = do
-  r     <- runSerializable @GameDbConn query
-  vargc <- liftIO $ newTVarIO gc
-  pure $ build <$> r <*> pure vargc
+  r <- runSerializable @GameDbConn query
+  pure $ build <$> r <*> pure SouthEast <*> pure defaultRestrictions <*> pure gc
  where
   query = GameQuery $ runSelectReturningOne $ select $ do
     c  <- all_ (gameDb ^. character)
@@ -71,5 +80,3 @@ loadPlayerCharacter gc cid = do
     guard_ (c ^. characterId ==. val_ cid)
     pure (c, cp, cl)
   build (c, cp, cl) = PlayerCharacter c cp cl
-
-

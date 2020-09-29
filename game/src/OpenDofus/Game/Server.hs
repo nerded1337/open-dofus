@@ -39,6 +39,8 @@ module OpenDofus.Game.Server
   , GameHandlerCallback
   , GameClientHandler
   , GameHandlerInput
+  , GameMapController
+  , GameClientController
   , mkClient
   )
 where
@@ -46,8 +48,8 @@ where
 import           OpenDofus.Core.Network.Client as X
 import           OpenDofus.Core.Network.Server as X
 import           OpenDofus.Core.Network.Types  as X
-import           OpenDofus.Database
-import           OpenDofus.Game.Map.Types
+import           OpenDofus.Database            as X
+import           OpenDofus.Game.Map.Types      as X
 import           OpenDofus.Prelude
 
 newtype GameClient =
@@ -57,13 +59,17 @@ newtype GameClient =
 
 makeClassy ''GameClient
 
+type GameClientController = IORef (Maybe GameClient)
+
+type GameMapController
+  = MapController GameClientController (MapEvent GameClientController)
+
 data GameServer = GameServer
-    { _gameServerState :: {-# UNPACK #-} !(ServerState GameClient)
+    { _gameServerState      :: {-# UNPACK #-} !(ServerState GameClient)
     , _gameServerAuthDbPool :: {-# UNPACK #-} !(Pool AuthDbConn)
     , _gameServerGameDbPool :: {-# UNPACK #-} !(Pool GameDbConn)
-    , _gameServerWorldId :: {-# UNPACK #-} !WorldId
-    , _gameServerMaps :: !(HashMap MapId
-    (MapController GameClient (HandlerInput GameServer GameClient)))
+    , _gameServerWorldId    :: {-# UNPACK #-} !WorldId
+    , _gameServerMaps       :: !(HashMap MapId GameMapController)
     }
 
 makeClassy ''GameServer

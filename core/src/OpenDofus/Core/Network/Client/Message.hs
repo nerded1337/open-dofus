@@ -25,10 +25,11 @@ module OpenDofus.Core.Network.Client.Message
   , ClientMessage(..)
   , ToNetwork(..)
   , FoldNetwork(..)
-  ) where
+  )
+where
 
-import qualified Data.ByteString.Lazy         as BS
-import qualified Data.ByteString.Lazy.Builder as BS
+import qualified Data.ByteString.Lazy          as BS
+import qualified Data.ByteString.Lazy.Builder  as BS
 
 import           OpenDofus.Prelude
 
@@ -39,12 +40,11 @@ data ClientMessage = ClientConnected
 
 makeClassy ''ClientMessage
 
-data FoldNetwork f a where
-  FoldNetwork :: (Foldable f, ToNetwork a) => f a -> FoldNetwork f a
+newtype FoldNetwork f a = FoldNetwork { unFoldNetwork :: f a }
 
-instance ToNetwork (FoldNetwork f a) where
+instance (Foldable f, ToNetwork a) => ToNetwork (FoldNetwork f a) where
   {-# INLINE toNetwork #-}
-  toNetwork (FoldNetwork x) = foldMap toNetwork x
+  toNetwork = foldMap toNetwork . unFoldNetwork
 
 class ToNetwork a where
   toNetwork :: a -> BS.Builder

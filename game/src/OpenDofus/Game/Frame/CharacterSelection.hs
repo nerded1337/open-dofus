@@ -48,6 +48,7 @@ type CharacterCreationInfos
     , CharacterColor
     )
 
+{-# INLINE parseCharacterCreationInfos #-}
 parseCharacterCreationInfos :: Parser CharacterCreationInfos
 parseCharacterCreationInfos =
   let dec = A.char '|' *> signed decimal
@@ -68,6 +69,15 @@ parseCharacterCreationInfos =
         <*> (CharacterColor <$> dec)
         <*> (CharacterColor <$> dec)
 
+sendCharacterList :: Account -> GameHandlerCallback ()
+sendCharacterList acc = do
+  wid        <- asks (view (handlerInputServer . gameServerWorldId))
+  characters <- runVolatile @GameDbConn
+    $ getCharacterList wid (acc ^. accountId)
+  remainingSubscription <- getAccountRemainingSubscriptionInMilliseconds
+    (acc ^. accountSubscriptionExpirationDate)
+  sendMessage $ CharacterList remainingSubscription characters
+
 characterCreationHandler
   :: Account
   -> CharacterCreationInfos
@@ -86,15 +96,6 @@ characterCreationHandler acc (cn, bi, sex, c1, c2, c3) =
       (Nothing, Just foundBreed) -> do
         void $ createNewCharacter (acc ^. accountId) cn foundBreed sex c1 c2 c3
         pure Nothing
-
-sendCharacterList :: Account -> GameHandlerCallback ()
-sendCharacterList acc = do
-  wid        <- asks (view (handlerInputServer . gameServerWorldId))
-  characters <- runVolatile @GameDbConn
-    $ getCharacterList wid (acc ^. accountId)
-  remainingSubscription <- getAccountRemainingSubscriptionInMilliseconds
-    (acc ^. accountSubscriptionExpirationDate)
-  sendMessage $ CharacterList remainingSubscription characters
 
 characterSelectionHandler :: Account -> GameClientHandler
 characterSelectionHandler acc = MessageHandlerCont $ go =<< ask
@@ -125,7 +126,7 @@ characterSelectionHandler acc = MessageHandlerCont $ go =<< ask
     case AL.parse (decimal @Word64) providedCharacterId of
       AL.Done _ cid -> do
         gc       <- asks (view handlerInputClient)
-        loadedPc <- loadPlayerCharacter (Just gc) (CharacterId cid)
+        loadedPc <- loadPlayerCharacter gc (CharacterId cid)
         case loadedPc of
           Just pc -> do
             sendMessage $ CharacterSelectionSuccess pc

@@ -18,16 +18,84 @@
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module OpenDofus.Game.Network.Message where
 
 import           Data.ByteString.Lazy.Builder
+import           Numeric.Lens
+import           OpenDofus.Game.Character
+import           OpenDofus.Prelude
 import           OpenDofus.Core.Network.Client
 import           OpenDofus.Game.Server
-import           OpenDofus.Database
-import           OpenDofus.Game.Character
-import           OpenDofus.Game.Map.Actor
-import           OpenDofus.Prelude
+
+newtype ToMapActorSpawn a = ToMapActorSpawn (GameActor a)
+
+instance ToNetwork (ToMapActorSpawn a) where
+  {-# INLINE toNetwork #-}
+  toNetwork (ToMapActorSpawn actor) =
+    "|+" <> word32Dec cid <> ";" <> intDec dir <> ";" <> go actor
+   where
+    cid = unCellId $ snd $ actor ^. to position
+    dir = fromEnum $ actor ^. to direction
+    aid = actor ^. to actorId
+    go (GameActorPC pc) =
+      let
+        baseChar = pc ^. playerCharacterBaseCharacter
+        look     = pc ^. playerCharacterCharacterLook
+      in
+        "0" -- entity type
+        <> ";"
+        <> word64Dec (unActorId aid)
+        <> ";"
+        <> byteString
+             (encodeTextStrict $ unCharacterName $ baseChar ^. characterName)
+        <> ";"
+        <> intDec (unBreedId $ baseChar ^. characterBreedId)
+                    -- TODO: ,titleId*titleParams
+        <> ";"
+        <> word32Dec (unGfxId $ look ^. characterLookGfxId)
+        <> "^"
+        <> word32Dec (unGfxSize $ look ^. characterLookGfxSize)
+        <> ";"
+        <> bool "0" "1" (unCharacterSex $ look ^. characterLookSex)
+        <> ";"
+        <> "0,0,0" -- TODO: alignment
+        <> ","
+        <> word64Dec
+             ( unActorId aid
+             + fromIntegral (unCharacterLevel $ baseChar ^. characterLevel)
+             )
+        <> ";"
+        <> int32HexFixed
+             (fromIntegral $ unCharacterColor $ look ^. characterLookFirstColor)
+        <> ";"
+        <> int32HexFixed
+             (fromIntegral $ unCharacterColor $ look ^. characterLookSecondColor
+             )
+        <> ";"
+        <> int32HexFixed
+             (fromIntegral $ unCharacterColor $ look ^. characterLookThirdColor)
+        <> ";"
+        <> "" -- TODO: inventory content look
+        <> ";"
+        <> "2" -- TODO: aura
+        <> ";"
+        <> "0" -- TODO: last emote
+        <> ";"
+        <> "0" -- TODO: emote timer
+        <> ";"
+        <> "" -- TODO: guild name
+        <> ";"
+        <> "" -- TODO: guild emblem
+        <> ";"
+        <> string8
+             (  encodeRestrictions (pc ^. playerCharacterRestrictions)
+             ^. re (base 36)
+             )
+        <> ";"
+        <> "" -- TODO: mount light infos
+        <> ";"
 
 data CharacterCreationFailureReason
   = CharacterCreationFailureReasonFull
@@ -50,19 +118,29 @@ data GameMessage
   | CharacterSelectionSuccess (PlayerCharacter GameClient)
   | GameCreationSuccess
   | GameDataMap MapId MapCreationDate MapDataKey
+  | MapActorSpawn [GameActor GameClientController]
+  | MapActorDespawn [GameActor GameClientController]
+  | AccountStats
+  | AccountRestrictions ActorRestrictionSet
+  | GameDataSuccess
 
 instance ToNetwork GameMessage where
   {-# INLINE toNetwork #-}
   toNetwork HelloGame              = "HG"
+
   toNetwork AccountTicketIsInvalid = "ATE"
+
   toNetwork AccountTicketIsValid   = "ATK0"
+
   toNetwork AccountRegionalVersion = "AVen"
+
   toNetwork (CharacterList subscription characters) =
     "ALK"
       <> word32Dec (unAccountRemainingSubscriptionInMilliseconds subscription)
       <> "|"
       <> intDec (length characters)
       <> toNetwork (FoldNetwork characters)
+
   toNetwork (CharacterCreationFailure reason) = "AAE" <> go reason
    where
     go CharacterCreationFailureReasonFull = "f"
@@ -70,19 +148,21 @@ instance ToNetwork GameMessage where
     go CharacterCreationFailureReasonBadName = "n"
     go CharacterCreationFailureReasonSubscriptionIsOver = "s"
     go _ = ""
+
   toNetwork CharacterCreationSuccess = "AAK"
+
   toNetwork (CharacterSelectionSuccess pc) =
-    let base = pc ^. playerCharacterBaseCharacter
-        look = pc ^. playerCharacterCharacterLook
+    let baseChar = pc ^. playerCharacterBaseCharacter
+        look     = pc ^. playerCharacterCharacterLook
     in  "ASK|"
-          <> word64Dec (unCharacterId $ base ^. characterId)
+          <> word64Dec (unCharacterId $ baseChar ^. characterId)
           <> "|"
           <> byteString
-               (encodeTextStrict $ unCharacterName $ base ^. characterName)
+               (encodeTextStrict $ unCharacterName $ baseChar ^. characterName)
           <> "|"
-          <> word32Dec (unCharacterLevel $ base ^. characterLevel)
+          <> word32Dec (unCharacterLevel $ baseChar ^. characterLevel)
           <> "|"
-          <> intDec (unBreedId $ base ^. characterBreedId)
+          <> intDec (unBreedId $ baseChar ^. characterBreedId)
           <> "|"
           <> bool "0" "1" (unCharacterSex $ look ^. characterLookSex)
           <> "|"
@@ -94,9 +174,11 @@ instance ToNetwork GameMessage where
           <> "|"
           <> intDec (unCharacterColor $ look ^. characterLookThirdColor)
           <> "|"
-          <> "" -- TODO: inventory content
+          <> "" -- TODO: inventory content look
           <> "|"
+
   toNetwork GameCreationSuccess = "GCK|1|"
+
   toNetwork (GameDataMap i d k) =
     "GDM|"
       <> word32Dec (unMapId i)
@@ -104,4 +186,17 @@ instance ToNetwork GameMessage where
       <> byteString (encodeTextStrict $ unMapCreationDate d)
       <> "|"
       <> byteString (encodeTextStrict $ unMapDataKey k)
+
+  toNetwork AccountStats    = "As"
+
+  toNetwork GameDataSuccess = "GDK"
+
+  toNetwork (MapActorSpawn actors) =
+    "GM" <> toNetwork (FoldNetwork (ToMapActorSpawn <$> actors))
+
+  toNetwork (MapActorDespawn _) = "GM" -- TODO: fix
+
+  toNetwork (AccountRestrictions restrictions) =
+    "AR" <> string8 (encodeRestrictions restrictions ^. re (base 36))
+
 

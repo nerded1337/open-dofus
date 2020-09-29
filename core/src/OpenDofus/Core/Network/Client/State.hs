@@ -40,14 +40,15 @@ module OpenDofus.Core.Network.Client.State
   , MessageHandlerCallback(..)
   , MessageHandler(..)
   , runMessageHandler
-  ) where
+  )
+where
 
 import           Control.Concurrent.STM
 import           Data.Bytes.Types
 import           GHC.Exts
 import           OpenDofus.Core.Network.Client.Connection
 import           OpenDofus.Core.Network.Client.Message
-import           OpenDofus.Core.Network.Types             (NetworkId)
+import           OpenDofus.Core.Network.Types   ( NetworkId )
 import           OpenDofus.Prelude
 
 type ClientCtor a = NetworkId -> ClientBuffer -> ClientConnection -> STM a
@@ -75,14 +76,16 @@ instance HasClientState b => HasClientState (HandlerInput a b) where
   clientState = handlerInputClient . clientState
 
 {-# INLINE runMessageHandler #-}
-runMessageHandler ::
-     MonadIO m
+runMessageHandler
+  :: MonadIO m
   => MessageHandler m a b
   -> HandlerInput a b
   -> m (MessageHandler m a b)
-runMessageHandler (MessageHandlerCont f) i       = runReaderT (unMessageHandlerCallback f) i
-runMessageHandler (MessageHandlerDisconnect f) i = runReaderT (unMessageHandlerCallback f) i
-runMessageHandler x                      _       = pure x
+runMessageHandler (MessageHandlerCont f) i =
+  runReaderT (unMessageHandlerCallback f) i
+runMessageHandler (MessageHandlerDisconnect f) i =
+  runReaderT (unMessageHandlerCallback f) i
+runMessageHandler x _ = pure x
 
 newtype MessageHandlerCallback a m b =
   MessageHandlerCallback
@@ -106,12 +109,12 @@ instance Show (MessageHandler m a b) where
   {-# INLINE show #-}
   show MessageHandlerLeaf           = "MessageHandlerLeaf"
   show (MessageHandlerDisconnect _) = "MessageHandlerDisconnect"
-  show (MessageHandlerCont _)       = "MessageHandlerCont"
+  show (MessageHandlerCont       _) = "MessageHandlerCont"
 
 instance Monad m => Semigroup (MessageHandler m a b) where
   {-# INLINE (<>) #-}
-  MessageHandlerLeaf <> x = x
-  x <> MessageHandlerLeaf = x
+  MessageHandlerLeaf   <> x                    = x
+  x                    <> MessageHandlerLeaf   = x
   MessageHandlerCont f <> MessageHandlerCont g = MessageHandlerCont $ f <> g
   (MessageHandlerDisconnect f) <> (MessageHandlerCont g) =
     MessageHandlerDisconnect $ f <> g

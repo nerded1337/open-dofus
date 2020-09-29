@@ -243,7 +243,7 @@ MapSubAreaNeighbour (MapSubAreaPK (LensFor subAreaNeighbourOriginSubAreaId)) (Ma
 
 data MapT f = Map
     { _mapId             :: !(C f MapId)
-    , _mapDate           :: !(C f MapCreationDate)
+    , _mapCreationDate   :: !(C f MapCreationDate)
     , _mapSubArea        :: !(PrimaryKey MapSubAreaT f)
     , _mapX              :: !(C f Int)
     , _mapY              :: !(C f Int)
@@ -269,5 +269,5 @@ deriving instance Show Map
 type MapPK = PrimaryKey MapT Identity
 deriving instance Show MapPK
 
-Map (LensFor mapId) (LensFor mapDate) (MapSubAreaPK (LensFor mapSubAreaId)) (LensFor mapX) (LensFor mapY) (LensFor mapWidth) (LensFor mapHeight) (LensFor mapBackgroundNum) (LensFor mapAmbianceId) (LensFor mapIsOutdoor) (LensFor mapCapabilities) (LensFor mapCompressedData) (LensFor mapDataKey)
+Map (LensFor mapId) (LensFor mapCreationDate) (MapSubAreaPK (LensFor mapSubAreaId)) (LensFor mapX) (LensFor mapY) (LensFor mapWidth) (LensFor mapHeight) (LensFor mapBackgroundNum) (LensFor mapAmbianceId) (LensFor mapIsOutdoor) (LensFor mapCapabilities) (LensFor mapCompressedData) (LensFor mapDataKey)
   = tableLenses

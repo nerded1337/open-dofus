@@ -106,5 +106,9 @@ parseMap !m =
         cellGenerator = V.generate (nbOfCell - 1) cellSlice
         cellSlices    = sequenceA $ bitraverse pure id <$> cellGenerator
         parseCells    = fmap (uncurry parseCell . second BS.unpack) . cellSlices
-    in  pure $ MapInstance m . HM.fromList . catMaybes $ V.toList
-          (bitraverse pure id <$> parseCells decompressedData)
+    in  pure $ MapInstance
+          m
+          (HM.fromList . catMaybes $ V.toList
+            (bitraverse pure id <$> parseCells decompressedData)
+          )
+          ()
