@@ -1,4 +1,4 @@
-resolver: lts-15.8
+resolver: lts-16.15
 
 allow-newer: true
 
@@ -16,10 +16,12 @@ packages:
 - lang-downloader
 
 extra-deps:
+        - git: https://github.com/nerded1337/bitwise-enum
+          commit: 10c101c560f92e84fedbcd7fb1e7213dc4b37ad1
         - git: https://github.com/andrewthad/posix-api
-          commit: b63fdfb9339135f21fd71f96f50fa040a9b46183
+          commit: 0150c22f79e7cb769f5c09c13537f09a7842576a
         - git: https://github.com/andrewthad/sockets
-          commit: a1e116cbecb8bd32fdcba3d34239691331488e62
+          commit: c19136ad84f783993478a6f914c7f59b9f94bcb4
         - git: https://github.com/nerded1337/asil
           commit: 751e5b830cc34d189b7b5049c6d85c5445c8e360
         - git: https://github.com/nerded1337/beam
@@ -35,6 +37,17 @@ extra-deps:
         - error-codes-0.1.0.1@sha256:3a36d70c6c306a206eb04a5ee24f2f9d0e81ad08f44965985785e7383deb6bc1,820
         - paths-0.2.0.0@sha256:b550399f0d1181a00221931255c48d72d6eaa8301056afcc9f96288c71aab664,2629
         - aeson-extra-0.4.1.3@sha256:e92dee5b770a4026da69fc127360e6a2b32c834da278db4e7642647d1aabbf7d,2960
+        - byteslice-0.2.3.0@sha256:3ebcc77f8ac9fec3ca1a8304e66cfe0a1590c9272b768f2b19637e06de00bf6d,2014
+        - ip-1.7.2@sha256:2148bbc7b5e66ea7273b6014bb30483cc656b2cd4e53efaf165c2223bdbbeb46,3742
+        - primitive-offset-0.2.0.0@sha256:f8006927d5c0a3e83707610bbc5514aabe8f84a907ecb07edd2c815f58299dea,843
+        - primitive-unlifted-0.1.3.0@sha256:a98f827740f5dcf097d885b3a47c32f4462204449620abc9d51b8c4f8619f9e6,1427
+        - bytebuild-0.3.6.0@sha256:aec785c906db5c7ec730754683196eb99a0d48e0deff7d4034c7b58307040b85,2982
+        - bytesmith-0.3.7.0@sha256:a11e4ca0fb72cd966c21d82dcc2eb7f3aa748b3fbfe30ab6c7fa8beea38c8e83,1863
+        - natural-arithmetic-0.1.2.0@sha256:ac25a0561c8378530a62f02df83680afb193ed1059bb43e3130e0074b5b3f16b,3411
+        - run-st-0.1.1.0@sha256:a43245bb23984089016772481bf52bfe63eaff0c5040303f69c9b15e80872fdc,883
+        - tuples-0.1.0.0@sha256:7006c1cab721ad3e39cdbf1ccb07ec050b94d654cc6e39277d46241eee6ac7c9,1088
+        - contiguous-0.5.1@sha256:902b74d8e369fef384c20b116c3c81e65eca2672d79f525ab374fe98ee50e9d4,1757
+
 
 nix:
         enable: true

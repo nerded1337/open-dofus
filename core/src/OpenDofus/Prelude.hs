@@ -87,7 +87,12 @@ import           RIO                           as X
                                                 , sets
                                                 , to
                                                 , view
+                                                , preview
                                                 , (^.)
+                                                , (^..)
+                                                , (^?)
+                                                , (.~)
+                                                , (%~)
                                                 )
 import           RIO.Partial                   as X
                                                 ( toEnum )

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: df4859fa4b5c5795dca737666f3d966184381ba2b6a7713b4922b6fc5061cee2
+-- hash: c3a59b8d7c7048d6b6945d714a165d06f4b48fc5ccc91625eac8edbeb636c6b7
 
 name:           open-dofus-game
 version:        0.1.0.0
@@ -32,15 +32,19 @@ executable open-dofus-game
       OpenDofus.Game.Frame.GameCreation
       OpenDofus.Game.Frame.HelloGame
       OpenDofus.Game.Frame.Logout
+      OpenDofus.Game.Frame.Map
       OpenDofus.Game.Map
       OpenDofus.Game.Map.Actor
       OpenDofus.Game.Map.Actor.PlayerCharacter
+      OpenDofus.Game.Map.Actor.Restriction
       OpenDofus.Game.Map.Actor.Types
       OpenDofus.Game.Map.Cell
       OpenDofus.Game.Map.Cell.Parser
       OpenDofus.Game.Map.Cell.Types
+      OpenDofus.Game.Map.Event
       OpenDofus.Game.Map.Interactive
       OpenDofus.Game.Map.Interactive.Types
+      OpenDofus.Game.Map.Movement.Types
       OpenDofus.Game.Map.Parser
       OpenDofus.Game.Map.Types
       OpenDofus.Game.Network
@@ -57,9 +61,11 @@ executable open-dofus-game
     , aeson
     , attoparsec
     , base >=4.7 && <5
+    , base64-bytestring
     , beam-core
     , beam-migrate
     , beam-postgres
+    , bitwise-enum
     , byteslice
     , bytestring
     , clock

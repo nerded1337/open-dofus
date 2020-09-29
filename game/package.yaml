@@ -45,6 +45,8 @@ dependencies:
 - unagi-chan
 - uri-encode
 - recursion-schemes
+- bitwise-enum
+- base64-bytestring
 
 default-extensions:
   - NoImplicitPrelude 
