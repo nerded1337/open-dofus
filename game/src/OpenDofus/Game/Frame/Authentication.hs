@@ -20,10 +20,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs            #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE BangPatterns #-}
 
 module OpenDofus.Game.Frame.Authentication
   ( authenticationHandler
-  ) where
+  )
+where
 
 import           Data.UUID
 import           OpenDofus.Core.Network.Server
@@ -39,45 +41,54 @@ ticketTimeOut :: NominalDiffTime
 ticketTimeOut = 5
 
 ticketHasTimedOut :: UTCTime -> AccountTicketCreationDate -> Bool
-ticketHasTimedOut now tickDate =
+ticketHasTimedOut !now !tickDate =
   diffUTCTime now (unAccountTicketCreationDate tickDate) >= ticketTimeOut
 
-authenticateWithTicket ::
-     UTCTime -> AccountTicketId -> AuthQuery (Maybe Account)
-authenticateWithTicket now tickId = go =<< getAccountByTicket tickId
-  where
-    go (Just (tick, acc))
-      | not (ticketHasTimedOut now (tick ^. accountTicketCreationDate)) &&
-          not (alreadyOnline acc) = do
-        setIsOnline acc True
-        pure $ Just acc
-    go (Just (tick, acc))
-      | not (ticketHasTimedOut now (tick ^. accountTicketCreationDate)) &&
-          alreadyOnline acc = do
-        setIsOnline acc False
-        pure Nothing
-    go _ = pure Nothing
-    setIsOnline :: Account -> Bool -> AuthQuery ()
-    setIsOnline acc = setAccountIsOnline (acc ^. accountId) . AccountIsOnline
-    alreadyOnline :: Account -> Bool
-    alreadyOnline acc = unAccountIsOnline (acc ^. accountIsOnline)
+authenticateWithTicket
+  :: UTCTime -> AccountTicketId -> AuthQuery (Maybe Account)
+authenticateWithTicket !now !tickId = go =<< getAccountByTicket tickId
+ where
+  go (Just (tick, acc))
+    | not (ticketHasTimedOut now (tick ^. accountTicketCreationDate))
+      && not (alreadyOnline acc)
+    = do
+      setIsOnline acc True
+      pure $ Just acc
+
+  go (Just (!tick, !acc))
+    | not (ticketHasTimedOut now (tick ^. accountTicketCreationDate))
+      && alreadyOnline acc
+    = do
+      setIsOnline acc False
+      pure Nothing
+
+  go _ = pure Nothing
+
+  setIsOnline :: Account -> Bool -> AuthQuery ()
+  setIsOnline !acc = setAccountIsOnline (acc ^. accountId) . AccountIsOnline
+
+  alreadyOnline :: Account -> Bool
+  alreadyOnline !acc = unAccountIsOnline (acc ^. accountIsOnline)
 
 authenticationHandler :: GameClientHandler
-authenticationHandler = MessageHandlerCont $ go =<< asks (view handlerInputMessage)
-  where
-    go (ClientSent ('A' :- ('T' :- providedTicket))) = do
-      let ticketUUID = fromLazyASCIIBytes providedTicket
-      now <- getCurrentTime
-      result <-
-        traverseCollapse (runSerializable @AuthDbConn . authenticateWithTicket now)
-        $ AccountTicketId <$> ticketUUID
-      case result of
-        Just acc -> do
-          sendMessage AccountTicketIsValid
-          pure $ characterSelectionHandler acc <> logoutHandler acc
-        Nothing -> do
-          sendMessage AccountTicketIsInvalid
-          pure $ MessageHandlerDisconnect mempty
-    go _ = do
-      sendMessage AccountTicketIsInvalid
-      pure $ MessageHandlerDisconnect mempty
+authenticationHandler = MessageHandlerCont $ go =<< asks
+  (view handlerInputMessage)
+ where
+  go (ClientSent ('A' :- ('T' :- providedTicket))) = do
+    let !ticketUUID = fromLazyASCIIBytes providedTicket
+    !now    <- getCurrentTime
+    !result <-
+      traverseCollapse
+        (runSerializable @AuthDbConn . authenticateWithTicket now)
+      $   AccountTicketId
+      <$> ticketUUID
+    case result of
+      Just !acc -> do
+        sendMessage AccountTicketIsValid
+        pure $ characterSelectionHandler acc <> logoutHandler acc
+      Nothing -> do
+        sendMessage AccountTicketIsInvalid
+        pure $ MessageHandlerDisconnect mempty
+  go _ = do
+    sendMessage AccountTicketIsInvalid
+    pure $ MessageHandlerDisconnect mempty

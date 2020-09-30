@@ -48,7 +48,6 @@ type CharacterCreationInfos
     , CharacterColor
     )
 
-{-# INLINE parseCharacterCreationInfos #-}
 parseCharacterCreationInfos :: Parser CharacterCreationInfos
 parseCharacterCreationInfos =
   let dec = A.char '|' *> signed decimal
@@ -104,9 +103,11 @@ characterSelectionHandler acc = MessageHandlerCont $ go =<< ask
   go (ClientSent ('A' :- ('V' :- _))) = do
     sendMessage AccountRegionalVersion
     pure $ characterSelectionHandler acc
+
   go (ClientSent ('A' :- ('L' :- _))) = do
     sendCharacterList acc
     pure $ characterSelectionHandler acc
+
   go (ClientSent ('A' :- ('A' :- providedCharInfos))) =
     case AL.parse parseCharacterCreationInfos providedCharInfos of
       AL.Done _ charInfos -> do
@@ -122,6 +123,7 @@ characterSelectionHandler acc = MessageHandlerCont $ go =<< ask
         sendMessage $ CharacterCreationFailure
           CharacterCreationFailureReasonInvalidInfos
         pure $ characterSelectionHandler acc
+
   go (ClientSent ('A' :- ('S' :- providedCharacterId))) =
     case AL.parse (decimal @Word64) providedCharacterId of
       AL.Done _ cid -> do
@@ -132,5 +134,7 @@ characterSelectionHandler acc = MessageHandlerCont $ go =<< ask
             sendMessage $ CharacterSelectionSuccess pc
             pure $ gameCreationHandler pc
           Nothing -> pure $ characterSelectionHandler acc
-      _ -> pure $ characterSelectionHandler acc
+      _ -> do
+        pure $ characterSelectionHandler acc
+
   go _ = pure $ characterSelectionHandler acc

@@ -20,11 +20,9 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
-{-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
 
 module OpenDofus.Game.Map.Actor
@@ -46,22 +44,17 @@ data GameActor a =
   deriving (Show)
 
 instance HasActorId (GameActor a) where
-  {-# INLINE actorId #-}
   actorId (GameActorPC pc) = pc ^. to actorId
 
 instance HasPosition (GameActor a) where
-  {-# INLINE position #-}
   position (GameActorPC pc) = pc ^. to position
 
 instance HasDirection (GameActor a) where
-  {-# INLINE direction #-}
   direction (GameActorPC pc) = pc ^. to direction
 
 instance HasController (GameActor a) a where
-  {-# INLINE controller #-}
   controller (GameActorPC pc) = pc ^. to controller
 
-{-# INLINE loadPlayerCharacter #-}
 loadPlayerCharacter
   :: (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m)
   => controller

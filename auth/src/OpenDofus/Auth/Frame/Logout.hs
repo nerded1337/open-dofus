@@ -17,6 +17,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+{-# LANGUAGE BangPatterns     #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -28,10 +29,12 @@ import           OpenDofus.Database
 import           OpenDofus.Prelude
 
 logoutHandler :: Account -> AuthClientHandler
-logoutHandler acc = MessageHandlerCont $ go =<< asks (view handlerInputMessage)
-  where
-    go ClientDisconnected = do
-      runSerializable @AuthDbConn $
-        setAccountIsOnline (acc ^. accountId) (AccountIsOnline False)
-      pure $ MessageHandlerDisconnect $ pure mempty
-    go _ = pure $ logoutHandler acc
+logoutHandler !acc = MessageHandlerCont $ go =<< asks
+  (view handlerInputMessage)
+ where
+  go ClientDisconnected = do
+    runSerializable @AuthDbConn
+      $ setAccountIsOnline (acc ^. accountId) (AccountIsOnline False)
+    pure $ MessageHandlerDisconnect $ pure mempty
+
+  go _ = pure $ logoutHandler acc

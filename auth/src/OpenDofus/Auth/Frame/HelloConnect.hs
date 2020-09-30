@@ -17,6 +17,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+{-# LANGUAGE BangPatterns #-}
+
 module OpenDofus.Auth.Frame.HelloConnect where
 
 import           Control.Monad.Random
@@ -28,8 +30,8 @@ import           OpenDofus.Prelude
 
 helloConnectHandler :: AuthClientHandler
 helloConnectHandler = MessageHandlerCont go
-  where
-    go = do
-      salt <- evalRandTIO newSalt
-      sendMessage $ HelloConnect salt
-      pure $ protocolHandler salt
+ where
+  go = do
+    !salt <- evalRandTIO newSalt
+    sendMessage $ HelloConnect salt
+    pure $ protocolHandler salt

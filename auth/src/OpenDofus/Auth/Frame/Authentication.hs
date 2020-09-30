@@ -19,6 +19,7 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE BangPatterns #-}
 
 module OpenDofus.Auth.Frame.Authentication where
 
@@ -39,34 +40,39 @@ hash :: BS.ByteString
 hash = fromString $ ['a' .. 'z'] <> ['A' .. 'Z'] <> ['0' .. '9'] <> ['-', '_']
 
 cryptPassword :: Salt -> BS.ByteString -> BS.ByteString
-cryptPassword salt password =
-  let key = unSalt salt
-      hl  = BS.length hash
-      project pkey ppass =
-          let apass = floor $ toRational ppass / 16
-              akey  = ppass `mod` 16
-              an    = (apass + pkey) `mod` hl
-              an'   = (akey + pkey) `mod` hl
-          in  BS.singleton (BS.index hash an) <> BS.singleton (BS.index hash an')
-      go =
-          (\i -> project (fromIntegral $ ord $ BS.index key i)
-                         (fromIntegral $ ord $ BS.index password i)
-            )
-            <$> [0 .. BS.length password - 1]
-  in  fold go
+cryptPassword !salt !password = fold go
+ where
+  !key = unSalt salt
+
+  !hl  = BS.length hash
+
+  project :: Int -> Int -> ByteString
+  project !pkey !ppass = BS.singleton (BS.index hash an)
+    <> BS.singleton (BS.index hash an')
+   where
+    !apass = floor $ toRational ppass / 16
+    !akey  = ppass `mod` 16
+    !an    = (apass + pkey) `mod` hl
+    !an'   = (akey + pkey) `mod` hl
+
+  go =
+    (\(!i) -> project (fromIntegral $ ord $ BS.index key i)
+                      (fromIntegral $ ord $ BS.index password i)
+      )
+      <$> [0 .. BS.length password - 1]
 
 parseCredentials
   :: [BS.ByteString] -> Either AuthFailureReason (AccountName, BS.ByteString)
 parseCredentials (providedAccountName : ('1' :- providedEncryptedPassword) : _)
-  = let accName = AccountName $ decodeStrictByteString providedAccountName
-    in  Right (accName, providedEncryptedPassword)
+  = Right (accName, providedEncryptedPassword)
+  where accName = AccountName $ decodeStrictByteString providedAccountName
 parseCredentials _ = Left AuthFailureInvalidCredentials
 
 handleAuthResult
   :: (MonadIO m, MonadReader (HandlerInput AuthServer AuthClient) m)
   => Either AuthFailureReason Account
   -> m AuthClientHandler
-handleAuthResult (Right acc) = do
+handleAuthResult (Right !acc) = do
   worlds <- runVolatile @AuthDbConn getWorldServers
   sendMessages
     [ AccountCurrentNickName $ acc ^. accountNickName
@@ -74,7 +80,7 @@ handleAuthResult (Right acc) = do
     , WorldServerList $ WorldServerInfo <$> worlds
     ]
   pure $ worldSelectionHandler worlds acc <> logoutHandler acc
-handleAuthResult (Left reason) = do
+handleAuthResult (Left !reason) = do
   sendMessage $ AuthFailure reason
   pure $ MessageHandlerDisconnect mempty
 
@@ -83,7 +89,7 @@ loginAccount
   -> BS.ByteString
   -> Account
   -> AuthQuery (Either AuthFailureReason Account)
-loginAccount salt encryptedPassword acc
+loginAccount !salt !encryptedPassword acc
   | passwordIsValid && banned = pure $ Left AuthFailureBanned
   | passwordIsValid && not alreadyOnline = do
     setIsOnline True
@@ -95,32 +101,36 @@ loginAccount salt encryptedPassword acc
  where
   setIsOnline :: Bool -> AuthQuery ()
   setIsOnline = setAccountIsOnline (acc ^. accountId) . AccountIsOnline
+
   passwordIsValid :: Bool
-  passwordIsValid =
+  !passwordIsValid =
     cryptPassword
         salt
         (encodeTextStrict $ unAccountPassword $ acc ^. accountPassword)
       == encryptedPassword
+
   banned :: Bool
-  banned = unAccountIsBanned (acc ^. accountIsBanned)
+  !banned = unAccountIsBanned (acc ^. accountIsBanned)
+
   alreadyOnline :: Bool
-  alreadyOnline = unAccountIsOnline (acc ^. accountIsOnline)
+  !alreadyOnline = unAccountIsOnline (acc ^. accountIsOnline)
 
 authenticationHandler :: Salt -> AuthClientHandler
-authenticationHandler salt = MessageHandlerCont $ go =<< asks
+authenticationHandler !salt = MessageHandlerCont $ go =<< asks
   (view handlerInputMessage)
  where
-  go (ClientSent credentials) = handleAuthResult =<< fmap
+  go (ClientSent !credentials) = handleAuthResult =<< fmap
     join
     (traverse authenticate $ parseCredentials $ BS.split
       '#'
       (LBS.toStrict credentials)
     )
    where
-    authenticate (providedAccountName, providedEncryptedPassword) =
+    authenticate (!providedAccountName, !providedEncryptedPassword) =
       runSerializable @AuthDbConn $ do
-        acc <- getAccountByName providedAccountName
+        !acc <- getAccountByName providedAccountName
         maybe (pure (Left AuthFailureInvalidCredentials))
               (loginAccount salt providedEncryptedPassword)
               acc
+
   go _ = pure $ MessageHandlerDisconnect mempty

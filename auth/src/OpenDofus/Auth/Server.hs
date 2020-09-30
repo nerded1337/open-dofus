@@ -55,34 +55,26 @@ makeClassy ''AuthServer
 type AuthClientHandler = MessageHandler IO AuthServer AuthClient
 
 instance HasConnectPool AuthServer AuthDbConn where
-  {-# INLINE getConnectionPool #-}
   getConnectionPool = view authServerDbPool
 
 instance HasClientType AuthServer where
   type ClientTypeOf AuthServer = AuthClient
 
 instance HasServerState AuthServer AuthClient where
-  {-# INLINE serverState #-}
   serverState = authServerState
 
 instance Show AuthClient where
-  {-# INLINE show #-}
   show (AuthClient s) =
     "AuthClient { " <> show (s ^. clientStateNetworkId) <> " }"
 
 instance HasClientConnection AuthClient where
-  {-# INLINE clientConnection #-}
   clientConnection = clientConnection
 
 instance HasClientState AuthClient where
-  {-# INLINE clientState #-}
   clientState = authClientState
 
 instance HasNetworkId AuthClient where
-  {-# INLINE networkId #-}
   networkId = authClientState . clientStateNetworkId
 
-{-# INLINE mkClient #-}
 mkClient :: NetworkId -> ClientBuffer -> ClientConnection -> STM AuthClient
-mkClient i b c =
-  pure $ AuthClient (ClientState b c i)
+mkClient i b c = pure $ AuthClient (ClientState b c i)

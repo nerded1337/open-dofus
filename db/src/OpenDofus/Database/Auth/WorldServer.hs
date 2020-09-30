@@ -19,15 +19,12 @@
 
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE DerivingVia                #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImpredicativeTypes         #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE TypeSynonymInstances       #-}
 
 {-# OPTIONS_GHC -Wno-missing-signatures     #-}
 
@@ -94,12 +91,7 @@ data WorldServerT f =
     }
   deriving (Generic, Beamable)
 
-WorldServer
-  (LensFor worldServerId)
-  (LensFor worldServerCompletion)
-  (LensFor worldServerStatus)
-  (LensFor worldServerIP)
-  (LensFor worldServerPort)
+WorldServer (LensFor worldServerId) (LensFor worldServerCompletion) (LensFor worldServerStatus) (LensFor worldServerIP) (LensFor worldServerPort)
   = tableLenses
 
 instance Table WorldServerT where

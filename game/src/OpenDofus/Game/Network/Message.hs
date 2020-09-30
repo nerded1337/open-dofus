@@ -17,34 +17,31 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+{-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE FlexibleContexts #-}
 
 module OpenDofus.Game.Network.Message where
 
 import           Data.ByteString.Lazy.Builder
+import qualified Data.Vector                   as V
 import           Numeric.Lens
-import           OpenDofus.Game.Character
-import           OpenDofus.Prelude
 import           OpenDofus.Core.Network.Client
+import           OpenDofus.Game.Character
 import           OpenDofus.Game.Server
+import           OpenDofus.Prelude
 
 newtype ToMapActorSpawn a = ToMapActorSpawn (GameActor a)
 
 instance ToNetwork (ToMapActorSpawn a) where
-  {-# INLINE toNetwork #-}
-  toNetwork (ToMapActorSpawn actor) =
+  toNetwork (ToMapActorSpawn !actor) =
     "|+" <> word32Dec cid <> ";" <> intDec dir <> ";" <> go actor
    where
-    cid = unCellId $ snd $ actor ^. to position
-    dir = fromEnum $ actor ^. to direction
-    aid = actor ^. to actorId
+    !cid = unCellId $ snd $ actor ^. to position
+    !dir = fromEnum $ actor ^. to direction
+    !aid = actor ^. to actorId
     go (GameActorPC pc) =
-      let
-        baseChar = pc ^. playerCharacterBaseCharacter
-        look     = pc ^. playerCharacterCharacterLook
-      in
-        "0" -- entity type
+      "0" -- entity type
         <> ";"
         <> word64Dec (unActorId aid)
         <> ";"
@@ -96,6 +93,15 @@ instance ToNetwork (ToMapActorSpawn a) where
         <> ";"
         <> "" -- TODO: mount light infos
         <> ";"
+     where
+      !baseChar = pc ^. playerCharacterBaseCharacter
+      !look     = pc ^. playerCharacterCharacterLook
+
+newtype ToMapActorDespawn a = ToMapActorDespawn (GameActor a)
+
+instance ToNetwork (ToMapActorDespawn a) where
+  toNetwork (ToMapActorDespawn !actor) = "|-" <> word64Dec (unActorId aid)
+    where !aid = actor ^. to actorId
 
 data CharacterCreationFailureReason
   = CharacterCreationFailureReasonFull
@@ -111,21 +117,20 @@ data GameMessage
   | AccountTicketIsValid
   | AccountRegionalVersion
   | CharacterList
-      AccountRemainingSubscriptionInMilliseconds
-      [CharacterListInfo]
+      !AccountRemainingSubscriptionInMilliseconds
+      !(V.Vector CharacterListInfo)
   | CharacterCreationSuccess
-  | CharacterCreationFailure CharacterCreationFailureReason
-  | CharacterSelectionSuccess (PlayerCharacter GameClient)
+  | CharacterCreationFailure !CharacterCreationFailureReason
+  | CharacterSelectionSuccess !(PlayerCharacter GameClient)
   | GameCreationSuccess
-  | GameDataMap MapId MapCreationDate MapDataKey
-  | MapActorSpawn [GameActor GameClientController]
-  | MapActorDespawn [GameActor GameClientController]
+  | GameDataMap !MapId !MapCreationDate !MapDataKey
+  | MapActorSpawn !(V.Vector (GameActor GameClientController))
+  | MapActorDespawn !(V.Vector (GameActor GameClientController))
   | AccountStats
-  | AccountRestrictions ActorRestrictionSet
+  | AccountRestrictions !ActorRestrictionSet
   | GameDataSuccess
 
 instance ToNetwork GameMessage where
-  {-# INLINE toNetwork #-}
   toNetwork HelloGame              = "HG"
 
   toNetwork AccountTicketIsInvalid = "ATE"
@@ -134,14 +139,14 @@ instance ToNetwork GameMessage where
 
   toNetwork AccountRegionalVersion = "AVen"
 
-  toNetwork (CharacterList subscription characters) =
+  toNetwork (CharacterList !subscription !characters) =
     "ALK"
       <> word32Dec (unAccountRemainingSubscriptionInMilliseconds subscription)
       <> "|"
       <> intDec (length characters)
       <> toNetwork (FoldNetwork characters)
 
-  toNetwork (CharacterCreationFailure reason) = "AAE" <> go reason
+  toNetwork (CharacterCreationFailure !reason) = "AAE" <> go reason
    where
     go CharacterCreationFailureReasonFull = "f"
     go CharacterCreationFailureReasonNameAlreadyExists = "a"
@@ -151,35 +156,36 @@ instance ToNetwork GameMessage where
 
   toNetwork CharacterCreationSuccess = "AAK"
 
-  toNetwork (CharacterSelectionSuccess pc) =
-    let baseChar = pc ^. playerCharacterBaseCharacter
-        look     = pc ^. playerCharacterCharacterLook
-    in  "ASK|"
-          <> word64Dec (unCharacterId $ baseChar ^. characterId)
-          <> "|"
-          <> byteString
-               (encodeTextStrict $ unCharacterName $ baseChar ^. characterName)
-          <> "|"
-          <> word32Dec (unCharacterLevel $ baseChar ^. characterLevel)
-          <> "|"
-          <> intDec (unBreedId $ baseChar ^. characterBreedId)
-          <> "|"
-          <> bool "0" "1" (unCharacterSex $ look ^. characterLookSex)
-          <> "|"
-          <> word32Dec (unGfxId $ look ^. characterLookGfxId)
-          <> "|"
-          <> intDec (unCharacterColor $ look ^. characterLookFirstColor)
-          <> "|"
-          <> intDec (unCharacterColor $ look ^. characterLookSecondColor)
-          <> "|"
-          <> intDec (unCharacterColor $ look ^. characterLookThirdColor)
-          <> "|"
-          <> "" -- TODO: inventory content look
-          <> "|"
+  toNetwork (CharacterSelectionSuccess !pc) =
+    "ASK|"
+      <> word64Dec (unCharacterId $ baseChar ^. characterId)
+      <> "|"
+      <> byteString
+           (encodeTextStrict $ unCharacterName $ baseChar ^. characterName)
+      <> "|"
+      <> word32Dec (unCharacterLevel $ baseChar ^. characterLevel)
+      <> "|"
+      <> intDec (unBreedId $ baseChar ^. characterBreedId)
+      <> "|"
+      <> bool "0" "1" (unCharacterSex $ look ^. characterLookSex)
+      <> "|"
+      <> word32Dec (unGfxId $ look ^. characterLookGfxId)
+      <> "|"
+      <> intDec (unCharacterColor $ look ^. characterLookFirstColor)
+      <> "|"
+      <> intDec (unCharacterColor $ look ^. characterLookSecondColor)
+      <> "|"
+      <> intDec (unCharacterColor $ look ^. characterLookThirdColor)
+      <> "|"
+      <> "" -- TODO: inventory content look
+      <> "|"
+   where
+    !baseChar = pc ^. playerCharacterBaseCharacter
+    !look     = pc ^. playerCharacterCharacterLook
 
   toNetwork GameCreationSuccess = "GCK|1|"
 
-  toNetwork (GameDataMap i d k) =
+  toNetwork (GameDataMap !i !d !k) =
     "GDM|"
       <> word32Dec (unMapId i)
       <> "|"
@@ -187,16 +193,15 @@ instance ToNetwork GameMessage where
       <> "|"
       <> byteString (encodeTextStrict $ unMapDataKey k)
 
-  toNetwork AccountStats    = "As"
+  toNetwork AccountStats    = "As" -- TODO: fix
 
   toNetwork GameDataSuccess = "GDK"
 
-  toNetwork (MapActorSpawn actors) =
+  toNetwork (MapActorSpawn !actors) =
     "GM" <> toNetwork (FoldNetwork (ToMapActorSpawn <$> actors))
 
-  toNetwork (MapActorDespawn _) = "GM" -- TODO: fix
+  toNetwork (MapActorDespawn !actors) =
+    "GM" <> toNetwork (FoldNetwork (ToMapActorDespawn <$> actors))
 
-  toNetwork (AccountRestrictions restrictions) =
+  toNetwork (AccountRestrictions !restrictions) =
     "AR" <> string8 (encodeRestrictions restrictions ^. re (base 36))
-
-

@@ -82,17 +82,17 @@ import           RIO                           as X
                                                 , lens
                                                 , map
                                                 , over
+                                                , preview
                                                 , second
                                                 , set
                                                 , sets
                                                 , to
                                                 , view
-                                                , preview
+                                                , (%~)
+                                                , (.~)
                                                 , (^.)
                                                 , (^..)
                                                 , (^?)
-                                                , (.~)
-                                                , (%~)
                                                 )
 import           RIO.Partial                   as X
                                                 ( toEnum )
@@ -148,7 +148,6 @@ instance HasProcessContext OpenDofusApp where
   processContextL = lens _openDofusAppProcessContext
                          (\x y -> x { _openDofusAppProcessContext = y })
 
-{-# INLINE runOpenDofusApp #-}
 runOpenDofusApp :: MonadIO m => Verbose -> RIO OpenDofusApp a -> m a
 runOpenDofusApp !verbose !f = liftIO $ do
   !lo <- logOptionsHandle stderr verbose
@@ -156,53 +155,41 @@ runOpenDofusApp !verbose !f = liftIO $ do
   withLogFunc lo
     $ \lf -> let !simpleApp = OpenDofusApp lf pc in runRIO simpleApp f
 
-{-# INLINE encodeTextLazy #-}
 encodeTextLazy :: Text -> LazyByteString
 encodeTextLazy = LBS.fromStrict . encodeUtf8
 
-{-# INLINE encodeTextStrict #-}
 encodeTextStrict :: Text -> ByteString
 encodeTextStrict = encodeUtf8
 
-{-# INLINE decodeLazyByteString #-}
 decodeLazyByteString :: LazyByteString -> Text
 decodeLazyByteString = decodeUtf8 . LBS.toStrict
 
-{-# INLINE decodeStrictByteString #-}
 decodeStrictByteString :: ByteString -> Text
 decodeStrictByteString = decodeUtf8
 
-{-# INLINE sliceLazyByteString #-}
 sliceLazyByteString :: Int64 -> Int64 -> LazyByteString -> LazyByteString
-sliceLazyByteString start end = LBS.take (end - start) . LBS.drop start
+sliceLazyByteString !start !end = LBS.take (end - start) . LBS.drop start
 
-{-# INLINE sliceStrictByteString #-}
 sliceStrictByteString :: Int -> Int -> ByteString -> ByteString
-sliceStrictByteString start end = BS.take (end - start) . BS.drop start
+sliceStrictByteString !start !end = BS.take (end - start) . BS.drop start
 
-{-# INLINE bind2 #-}
 bind2 :: Monad m => (a -> b -> m c) -> m a -> m b -> m c
 bind2 !f !x !y = join $ f <$> x <*> y
 
-{-# INLINE traverseCollapse #-}
 traverseCollapse
   :: (Traversable f, Monad f, Monad m) => (a -> m (f b)) -> f a -> m (f b)
 traverseCollapse !f !x = join <$> traverse f x
 
-{-# INLINE showText #-}
 showText :: Show a => a -> Text
 showText = T.pack . show
 
-{-# INLINE showByteString #-}
 showByteString :: Show a => a -> ByteString
 showByteString = BSC.pack . show
 
-{-# INLINE traverseFirst #-}
 traverseFirst
   :: (Bitraversable f, Applicative g) => (a -> g b) -> f a c -> g (f b c)
-traverseFirst f = bitraverse f pure
+traverseFirst !f = bitraverse f pure
 
-{-# INLINE traverseSecond #-}
 traverseSecond
   :: (Bitraversable f, Applicative g) => (b -> g c) -> f a b -> g (f a c)
 traverseSecond = bitraverse pure

@@ -55,17 +55,15 @@ import           OpenDofus.Data.Constructible
 import           OpenDofus.Prelude
 
 class (forall a. Coercible (q a) (Pg a), forall a. Coercible (Pg a) (q a)) => IsPg q where
-  {-# INLINE toPg #-}
   toPg :: q a -> Pg a
   toPg = coerce
-  {-# INLINE fromPg #-}
+
   fromPg :: Pg a -> q a
   fromPg = coerce
 
 instance IsPg Pg where
-  {-# INLINE toPg #-}
-  toPg = id
-  {-# INLINE fromPg #-}
+  toPg   = id
+
   fromPg = id
 
 class (IsPg (QueryTypeOf a)) => HasQueryType a where
@@ -78,11 +76,9 @@ class (HasQueryType b, Coercible b Connection) =>
 
 instance (HasQueryType a, Coercible a Connection) =>
          HasConnectPool (Pool a) a where
-  {-# INLINE getConnectionPool #-}
   getConnectionPool = id
 
 instance (HasConnectPool a b) => HasConnectPool (HandlerInput a x) b where
-  {-# INLINE getConnectionPool #-}
   getConnectionPool = getConnectionPool . view handlerInputServer
 
 newtype BinaryField a =

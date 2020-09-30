@@ -66,4 +66,4 @@ executables:
       - -feager-blackholing
       # - -fstatic-argument-transformation
       # - -fllvm
-      - "\"-with-rtsopts=-N -T -H512m -K64m\""
+      - "\"-with-rtsopts=-N -T -H256m -K128m\""

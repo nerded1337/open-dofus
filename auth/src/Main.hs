@@ -45,19 +45,19 @@ app = do
                                                       "nerded"
                                                       "nerded"
                                                       "opendofus_auth"
-  gameDbPool <- liftIO $ createConnPool @GameDbConn $ ConnectInfo
-    "localhost"
-    5432
-    "nerded"
-    "nerded"
-    "opendofus_game"
-  runReaderT createAuthDb authDbPool
-  runReaderT
-    (do
-      createGameDb
-      populateGameDb "data/dofus"
-    )
-    gameDbPool
+  -- gameDbPool <- liftIO $ createConnPool @GameDbConn $ ConnectInfo
+  --   "localhost"
+  --   5432
+  --   "nerded"
+  --   "nerded"
+  --   "opendofus_game"
+  -- runReaderT createAuthDb authDbPool
+  -- runReaderT
+  --   (do
+  --     createGameDb
+  --     populateGameDb "data/dofus"
+  --   )
+  --   gameDbPool
   serv <- AuthServer <$> mkServer 8080 1000 128 mkClient <*> pure authDbPool
   logInfo "Starting authentication server"
   result <- startServer serv (loggingHandler <> helloConnectHandler)

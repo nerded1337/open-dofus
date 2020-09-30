@@ -40,7 +40,6 @@ import           OpenDofus.Database
 import           OpenDofus.Game.Map.Types      as X
 import           OpenDofus.Prelude
 
-{-# INLINE prepareKey #-}
 prepareKey :: MapDataKey -> MapDataKey
 prepareKey !key =
   MapDataKey
@@ -49,24 +48,22 @@ prepareKey !key =
     $ T.foldl' step (Nothing, mempty)
     $ unMapDataKey key
  where
-  step (Nothing, !o) !c = (Just c, o)
-  step (Just !c, !o) !c' =
-    let hex =
-            fst
-              $  fromRight (error "Invalid cell hex")
-              $  T.hexadecimal
-              $  T.singleton c
-              <> T.singleton c'
-    in  (Nothing, o <> T.singleton (toEnum hex))
+  step (Nothing, !o) !c  = (Just c, o)
+  step (Just !c, !o) !c' = (Nothing, o <> T.singleton (toEnum hex))
+   where
+    hex =
+      fst
+        $  fromRight (error "Invalid cell hex")
+        $  T.hexadecimal
+        $  T.singleton c
+        <> T.singleton c'
 
-{-# INLINE keyChecksum #-}
 keyChecksum :: MapDataKey -> Int
-keyChecksum !key =
-  let final = T.foldl' step 0 $ unMapDataKey key
-      step x c = x + (fromEnum c `mod` 16)
-  in  final `mod` 16
+keyChecksum !key = final `mod` 16
+ where
+  final = T.foldl' step 0 $ unMapDataKey key
+  step x c = x + (fromEnum c `mod` 16)
 
-{-# INLINE decompressMapData #-}
 decompressMapData :: MapCompressedData -> MapDataKey -> ByteString
 decompressMapData !dat !key = extract
   $ T.foldl' step initialState (unMapCompressedData dat)
@@ -89,26 +86,30 @@ decompressMapData !dat !key = extract
     in  (Nothing, i + 1, o <> o')
   extract (_, _, o) = encodeTextStrict $ URI.decodeText o
 
-{-# INLINE parseMap #-}
 parseMap :: Map -> Maybe (MapInstanceT (Maybe InteractiveObjectGfxId) Unit)
 parseMap !m =
   go . decompressMapData (m ^. mapCompressedData) =<< m ^. mapDataKey
  where
-  go !decompressedData =
-    let compressedCellSize = 10
-        nbOfCell = BS.length decompressedData `quot` compressedCellSize
-        cellSlice !cid =
-            ( CellId $ fromIntegral cid
-            , sliceStrictByteString
-              (fromIntegral cid * compressedCellSize)
-              ((fromIntegral cid * compressedCellSize) + compressedCellSize)
-            )
-        cellGenerator = V.generate (nbOfCell - 1) cellSlice
-        cellSlices    = sequenceA $ bitraverse pure id <$> cellGenerator
-        parseCells    = fmap (uncurry parseCell . second BS.unpack) . cellSlices
-    in  pure $ MapInstance
-          m
-          (HM.fromList . catMaybes $ V.toList
-            (bitraverse pure id <$> parseCells decompressedData)
-          )
-          ()
+  go !decompressedData = pure $ MapInstance
+    m
+    (HM.fromList . catMaybes $ V.toList
+      (bitraverse pure id <$> parseCells decompressedData)
+    )
+    ()
+   where
+    compressedCellSize = 10
+
+    nbOfCell           = BS.length decompressedData `quot` compressedCellSize
+
+    cellSlice !cid =
+      ( CellId $ fromIntegral cid
+      , sliceStrictByteString
+        (fromIntegral cid * compressedCellSize)
+        ((fromIntegral cid * compressedCellSize) + compressedCellSize)
+      )
+
+    cellGenerator = V.generate (nbOfCell - 1) cellSlice
+
+    cellSlices    = sequenceA $ bitraverse pure id <$> cellGenerator
+
+    parseCells    = fmap (uncurry parseCell . second BS.unpack) . cellSlices

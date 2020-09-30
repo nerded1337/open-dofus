@@ -22,5 +22,6 @@ module OpenDofus.Game.Map.Cell
   )
 where
 
+import           OpenDofus.Game.Map.Cell.Types as X
 import           OpenDofus.Game.Map.Cell.Parser
                                                as X

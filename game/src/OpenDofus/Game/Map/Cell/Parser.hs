@@ -38,12 +38,10 @@ import           OpenDofus.Database
 import           OpenDofus.Game.Map.Cell.Types as X
 import           OpenDofus.Prelude
 
-{-# INLINE hashCell #-}
 hashCell :: Vector Word8
 hashCell = V.fromList $ BS.unpack
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
 
-{-# INLINE prepareCellData #-}
 prepareCellData :: [Word8] -> [Word8]
 prepareCellData !x = go <$> x
  where
@@ -52,60 +50,57 @@ prepareCellData !x = go <$> x
       e
       hashCell
 
-{-# INLINE parseCell #-}
 parseCell
   :: CellId -> [Word8] -> (CellId, Maybe (CellT (Maybe InteractiveObjectGfxId)))
-      --       0  1  2  3  4  5  6  7  8  9
 parseCell !cid !x = go (prepareCellData x)
  where
   go (a :- (b :- (c :- (d :- (e :- (f :- (g :- (h :- (i :- (j :- _)))))))))) =
-    let
-      conv   = fromIntegral @Word8 @Word16
-      active = ((a .&. 32) `shiftR` 5) > 0
-      los    = (a .&. 1) == 1
-      lgr    = (b .&. 48) `shiftR` 4
-      gl     = b .&. 15
-      m      = toEnum $ fromIntegral $ (c .&. 56) `shiftR` 3
-      lgn = (conv (a .&. 24) `shiftL` 6) + (conv (c .&. 7) `shiftL` 6) + conv d
-      gs     = (e .&. 60) `shiftR` 2
-      lgf    = (conv (e .&. 2) `shiftR` 1) > 0
-      lo1n =
-        (conv (a .&. 4) `shiftL` 11)
-          + (conv (e .&. 1) `shiftL` 12)
-          + (conv f `shiftL` 6)
-          + conv g
-      lo1r = (h .&. 48) `shiftR` 5
-      lo1f = ((h .&. 8) `shiftR` 3) > 0
-      lo2f = ((h .&. 4) `shiftR` 2) > 0
-      lo2i = ((h .&. 2) `shiftR` 1) > 0
-      lo2n =
-        (conv (a .&. 2) `shiftL` 12)
-          + (conv (h .&. 1) `shiftL` 12)
-          + (conv i `shiftL` 6)
-          + conv j
-    in
-      ( cid
-      , if not active
-        then Nothing
-        else Just $ Cell
-          cid
-          active
-          los
-          lgr
-          gl
-          m
-          lgn
-          gs
-          lgf
-          lo1n
-          lo1r
-          lo1f
-          lo2f
-          lo2i
-          lo2n
-          (if lo2i
-            then Just (InteractiveObjectGfxId $ fromIntegral lo2n)
-            else Nothing
-          )
-      )
+    ( cid
+    , if not active
+      then Nothing
+      else Just $ Cell
+        cid
+        active
+        los
+        lgr
+        gl
+        m
+        lgn
+        gs
+        lgf
+        lo1n
+        lo1r
+        lo1f
+        lo2f
+        lo2i
+        lo2n
+        (if lo2i
+          then Just (InteractiveObjectGfxId $ fromIntegral lo2n)
+          else Nothing
+        )
+    )
+   where
+    conv   = fromIntegral @Word8 @Word16
+    active = ((a .&. 32) `shiftR` 5) > 0
+    los    = (a .&. 1) == 1
+    lgr    = (b .&. 48) `shiftR` 4
+    gl     = b .&. 15
+    m      = toEnum $ fromIntegral $ (c .&. 56) `shiftR` 3
+    lgn    = (conv (a .&. 24) `shiftL` 6) + (conv (c .&. 7) `shiftL` 6) + conv d
+    gs     = (e .&. 60) `shiftR` 2
+    lgf    = (conv (e .&. 2) `shiftR` 1) > 0
+    lo1n =
+      (conv (a .&. 4) `shiftL` 11)
+        + (conv (e .&. 1) `shiftL` 12)
+        + (conv f `shiftL` 6)
+        + conv g
+    lo1r = (h .&. 48) `shiftR` 5
+    lo1f = ((h .&. 8) `shiftR` 3) > 0
+    lo2f = ((h .&. 4) `shiftR` 2) > 0
+    lo2i = ((h .&. 2) `shiftR` 1) > 0
+    lo2n =
+      (conv (a .&. 2) `shiftL` 12)
+        + (conv (h .&. 1) `shiftL` 12)
+        + (conv i `shiftL` 6)
+        + conv j
   go _ = error "Invalid cell data"

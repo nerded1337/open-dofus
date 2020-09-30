@@ -25,6 +25,7 @@ where
 import           OpenDofus.Core.Network.Server
 import           OpenDofus.Data.Constructible
 import           OpenDofus.Database
+import           OpenDofus.Game.Frame.CharacterLogout
 import           OpenDofus.Game.Frame.Map
 import           OpenDofus.Game.Map
 import           OpenDofus.Game.Network.Message
@@ -56,9 +57,12 @@ gameCreationHandler pc = MessageHandlerCont $ go =<< asks
         case gameDataMapMsg of
           Just msg -> do
             pcRef <- traverse (newIORef . Just) pc
-            raiseMapEvent mapCtl $ MapEventSpawnActor $ GameActorPC pcRef
+            raiseMapEvent mapCtl $ MapEventActorSpawn $ GameActorPC pcRef
             sendMessages [GameCreationSuccess, msg, GameDataSuccess]
-            pure $ mapHandler pcRef mapCtl
+            pure
+              $  mapHandler pcRef mapCtl
+              <> characterLogoutHandler pcRef mapCtl
           Nothing -> pure $ MessageHandlerDisconnect mempty
       Nothing -> pure $ MessageHandlerDisconnect mempty
+
   go _ = pure $ gameCreationHandler pc

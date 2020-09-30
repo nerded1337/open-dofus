@@ -48,6 +48,7 @@ import           Data.Coerce
 import           Data.Foldable
 import           Data.Functor
 import           Data.Pool
+import qualified Data.Vector                   as V
 import           Database.Beam                 as X
 import           Database.Beam.Migrate         as X
 import           Database.Beam.Postgres        as X
@@ -65,7 +66,6 @@ import           OpenDofus.Database.SWF.Skill
 import           OpenDofus.Database.SWF.Spell
 import           OpenDofus.Prelude
 
-{-# INLINE populateGameDb #-}
 populateGameDb
   :: forall a m
    . (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m)
@@ -128,7 +128,6 @@ populateGameDb path = do
     msubas
   runQ $ runInsert $ insert (gameDb ^. map) $ insertValues $ toList ms
 
-{-# INLINE createDb #-}
 createDb
   :: forall a b x m
    . (MonadIO m, HasConnectPool x b, MonadReader x m)
@@ -152,19 +151,16 @@ createConnPool
 createConnPool connInfo =
   liftIO $ createPool (coerce <$> connect connInfo) (close . coerce) 2 60 100
 
-{-# INLINE createGameDb #-}
 createGameDb
   :: forall x m
    . (MonadIO m, HasConnectPool x GameDbConn, MonadReader x m)
   => m ()
 createGameDb = createDb @GameDb @GameDbConn gameDbMigrations
 
-{-# INLINE createAuthDb #-}
 createAuthDb
   :: (MonadIO m, HasConnectPool x AuthDbConn, MonadReader x m) => m ()
 createAuthDb = createDb @AuthDb @AuthDbConn authDbMigrations
 
-{-# INLINE runVolatile #-}
 runVolatile
   :: forall b m x a
    . (MonadIO m, HasConnectPool x b, MonadReader x m)
@@ -175,7 +171,6 @@ runVolatile query = do
   liftIO $ withResource pool (go . coerce)
   where go connection = runQuery connection query
 
-{-# INLINE runSerializable #-}
 runSerializable
   :: forall b m x a
    . (MonadIO m, HasConnectPool x b, MonadReader x m)
@@ -188,16 +183,13 @@ runSerializable query = do
   go connection =
     withTransactionSerializable connection $ runQuery connection query
 
-{-# INLINE runQuery #-}
 runQuery :: (MonadIO m, IsPg q) => Connection -> q a -> m a
 runQuery connection = liftIO . runBeamPostgres connection . toPg
 
-{-# INLINE getWorldServers #-}
-getWorldServers :: AuthQuery [WorldServer]
-getWorldServers = AuthQuery query
+getWorldServers :: AuthQuery (V.Vector WorldServer)
+getWorldServers = V.fromList <$> AuthQuery query
   where query = runSelectReturningList $ select $ all_ (authDb ^. worldServer)
 
-{-# INLINE getAccountByName #-}
 getAccountByName :: AccountName -> AuthQuery (Maybe Account)
 getAccountByName accName = AuthQuery query
  where
@@ -206,13 +198,11 @@ getAccountByName accName = AuthQuery query
     guard_ (acc ^. accountName ==. val_ accName)
     pure acc
 
-{-# INLINE getAccountById #-}
 getAccountById :: AccountId -> AuthQuery (Maybe Account)
 getAccountById accId = AuthQuery query
  where
   query = runSelectReturningOne $ lookup_ (authDb ^. account) (AccountPK accId)
 
-{-# INLINE setAccountIsOnline #-}
 setAccountIsOnline :: AccountId -> AccountIsOnline -> AuthQuery ()
 setAccountIsOnline accId isOnline = AuthQuery query
  where
@@ -221,7 +211,6 @@ setAccountIsOnline accId isOnline = AuthQuery query
     (\acc -> (acc ^. accountIsOnline) <-. val_ isOnline)
     (\acc -> (acc ^. accountId) ==. val_ accId)
 
-{-# INLINE generateAccountTicket #-}
 generateAccountTicket :: AccountId -> AuthQuery AccountTicket
 generateAccountTicket accId = AuthQuery query
  where
@@ -232,7 +221,6 @@ generateAccountTicket accId = AuthQuery query
     runInsert $ insert (authDb ^. accountTicket) $ insertValues [ticket]
     pure ticket
 
-{-# INLINE getAccountRemainingSubscriptionInMilliseconds #-}
 getAccountRemainingSubscriptionInMilliseconds
   :: MonadIO m
   => AccountSubscriptionExpirationDate
@@ -247,7 +235,6 @@ getAccountRemainingSubscriptionInMilliseconds expiration = do
     $ remainingSeconds
     * 1000
 
-{-# INLINE getAccountByTicket #-}
 getAccountByTicket
   :: AccountTicketId -> AuthQuery (Maybe (AccountTicket, Account))
 getAccountByTicket i = AuthQuery query
@@ -259,12 +246,10 @@ getAccountByTicket i = AuthQuery query
     guard_ (tick ^. accountTicketId ==. val_ i)
     pure (tick, acc)
 
-{-# INLINE getBreedById #-}
 getBreedById :: BreedId -> GameQuery (Maybe Breed)
 getBreedById bid = GameQuery query
   where query = runSelectReturningOne $ lookup_ (gameDb ^. breed) (BreedPK bid)
 
-{-# INLINE getCharacterByName #-}
 getCharacterByName :: CharacterName -> GameQuery (Maybe Character)
 getCharacterByName cn = GameQuery query
  where
@@ -273,7 +258,6 @@ getCharacterByName cn = GameQuery query
     guard_ (c ^. characterName ==. val_ cn)
     pure c
 
-{-# INLINE createNewCharacter #-}
 createNewCharacter
   :: AccountId
   -> CharacterName
@@ -301,7 +285,6 @@ createNewCharacter ai cn b s c1 c2 c3 = GameQuery query
                                  1
                                  0
                                  0
-    runInsert $ insert (gameDb ^. character) $ insertValues [newCharacter]
     let newCharacterLook = CharacterLook
           (CharacterPK nextCharacterId)
           (GfxId $ fromIntegral $ unBreedId (b ^. breedId) * 10 + bool
@@ -314,12 +297,13 @@ createNewCharacter ai cn b s c1 c2 c3 = GameQuery query
           c1
           c2
           c3
+    runInsert $ insert (gameDb ^. character) $ insertValues [newCharacter]
     runInsert $ insert (gameDb ^. characterLook) $ insertValues
       [newCharacterLook]
     pure (newCharacter, newCharacterLook)
 
-getMapIds :: GameQuery [MapId]
-getMapIds = GameQuery query
+getMapIds :: GameQuery (V.Vector MapId)
+getMapIds = V.fromList <$> GameQuery query
  where
   query = runSelectReturningList $ select $ do
     m <- all_ (gameDb ^. map)

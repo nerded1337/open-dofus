@@ -26,7 +26,7 @@ import           OpenDofus.Game.Map.Actor
 import           OpenDofus.Prelude
 
 data MapEvent a
-  = MapEventSpawnActor (GameActor a)
-  | MapEventDespawnActor (GameActor a)
+  = MapEventActorSpawn (GameActor a)
+  | MapEventActorDespawn (GameActor a)
   | MapEventDispatchInformations (GameActor a)
   deriving (Show)

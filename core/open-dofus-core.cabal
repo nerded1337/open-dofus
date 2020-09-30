@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.32.0.
+-- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b7e17e9f21e7f361c23a773aed871d6f3cb58fc6e53da29d3ff3aa63b18786e2
+-- hash: f34afb0c67b393bb168311870bc16f2677f0331380e65d85070dd4056ddff2b6
 
 name:           open-dofus-core
 version:        0.1.0.0
@@ -68,6 +68,7 @@ library
     , postgresql-simple
     , pqueue
     , primitive
+    , primitive-addr
     , primitive-unlifted
     , rio
     , rio-prettyprint

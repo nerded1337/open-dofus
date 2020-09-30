@@ -17,7 +17,6 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE GADTs           #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module OpenDofus.Core.Network.Client.Message
@@ -43,7 +42,6 @@ makeClassy ''ClientMessage
 newtype FoldNetwork f a = FoldNetwork { unFoldNetwork :: f a }
 
 instance (Foldable f, ToNetwork a) => ToNetwork (FoldNetwork f a) where
-  {-# INLINE toNetwork #-}
   toNetwork = foldMap toNetwork . unFoldNetwork
 
 class ToNetwork a where

@@ -22,7 +22,8 @@
 
 module OpenDofus.Auth.Frame.WorldSelection where
 
-import qualified Data.ByteString.Lazy.Char8     as BS
+import qualified Data.ByteString.Lazy.Char8    as BS
+import qualified Data.Vector                   as V
 import           OpenDofus.Auth.Network.Message
 import           OpenDofus.Auth.Server
 import           OpenDofus.Core.Network.Client
@@ -31,34 +32,36 @@ import           OpenDofus.Data.Constructible
 import           OpenDofus.Database
 import           OpenDofus.Prelude
 
-findWorld :: [WorldServer] -> BS.ByteString -> Maybe WorldServer
+findWorld :: V.Vector WorldServer -> BS.ByteString -> Maybe WorldServer
 findWorld worlds providedWorldId = do
   actualWorldId <- readMaybe $ BS.unpack providedWorldId
   find (isWorldId actualWorldId) worlds
-  where
-    isWorldId i w = (w ^. worldServerId) == i
+  where isWorldId i w = (w ^. worldServerId) == i
 
-worldSelectionHandler :: [WorldServer] -> Account -> AuthClientHandler
-worldSelectionHandler worlds acc =
-  MessageHandlerCont $ go =<< asks (view handlerInputMessage)
-  where
-    go (ClientSent ('A' :- ('X' :- providedWorldId))) = do
-      case findWorld worlds providedWorldId of
-        (Just worldFound) -> do
-          ticket <-
-            runVolatile @AuthDbConn $ generateAccountTicket (acc ^. accountId)
-          sendMessage $
-            WorldSelectionSuccess (WorldServerEndpointInfo worldFound) ticket
-          pure $ MessageHandlerDisconnect mempty
-        Nothing -> do
-          sendMessage WorldSelectionFailure
-          pure $ MessageHandlerDisconnect mempty
-    go (ClientSent ('A' :- ('x' :- _))) = do
-      remainingSubscription <-
-        getAccountRemainingSubscriptionInMilliseconds $
-        acc ^. accountSubscriptionExpirationDate
-      sendMessage $
-        WorldCharacterList (view worldServerId <$> worlds) remainingSubscription
-      pure $ worldSelectionHandler worlds acc
-    go _ = do
-      pure $ worldSelectionHandler worlds acc
+worldSelectionHandler :: V.Vector WorldServer -> Account -> AuthClientHandler
+worldSelectionHandler worlds acc = MessageHandlerCont $ go =<< asks
+  (view handlerInputMessage)
+ where
+  go (ClientSent ('A' :- ('X' :- providedWorldId))) = do
+    case findWorld worlds providedWorldId of
+      (Just worldFound) -> do
+        ticket <- runVolatile @AuthDbConn
+          $ generateAccountTicket (acc ^. accountId)
+        sendMessage
+          $ WorldSelectionSuccess (WorldServerEndpointInfo worldFound) ticket
+        pure $ MessageHandlerDisconnect mempty
+      Nothing -> do
+        sendMessage WorldSelectionFailure
+        pure $ MessageHandlerDisconnect mempty
+
+  go (ClientSent ('A' :- ('x' :- _))) = do
+    remainingSubscription <-
+      getAccountRemainingSubscriptionInMilliseconds
+      $  acc
+      ^. accountSubscriptionExpirationDate
+    sendMessage $ WorldCharacterList (view worldServerId <$> worlds)
+                                     remainingSubscription
+    pure $ worldSelectionHandler worlds acc
+
+  go _ = do
+    pure $ worldSelectionHandler worlds acc

@@ -17,6 +17,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+{-# LANGUAGE BangPatterns     #-}
 {-# LANGUAGE TypeApplications #-}
 
 module OpenDofus.Game.Types
@@ -36,20 +37,20 @@ getGameTime :: MonadIO m => m GameTime
 getGameTime = liftIO $ GameTime <$> C.getTime C.Realtime
 
 _fromInteger :: Integer -> C.TimeSpec
-_fromInteger i =
-  let s  = fromIntegral @Integer $ i `quot` 1000000000
-      ns = fromIntegral @Integer $ i `rem` 1000000000
+_fromInteger !i =
+  let !s  = fromIntegral @Integer $ i `quot` 1000000000
+      !ns = fromIntegral @Integer $ i `rem` 1000000000
   in  C.TimeSpec s ns
 
 _toInteger :: C.TimeSpec -> Integer
-_toInteger ts =
-  let s  = fromIntegral @Int64 $ C.sec ts
-      ns = fromIntegral @Int64 $ C.nsec ts
+_toInteger !ts =
+  let !s  = fromIntegral @Int64 $ C.sec ts
+      !ns = fromIntegral @Int64 $ C.nsec ts
   in  s * 1000000000 + ns
 
 gameTimeMilliseconds :: GameTime -> Int
-gameTimeMilliseconds (GameTime ts) =
+gameTimeMilliseconds (GameTime !ts) =
   fromIntegral $ _toInteger ts `quot` 1000000
 
 millisecondsToGameTime :: Int -> C.TimeSpec
-millisecondsToGameTime i = _fromInteger $ fromIntegral i * 1000000
+millisecondsToGameTime !i = _fromInteger $ fromIntegral i * 1000000

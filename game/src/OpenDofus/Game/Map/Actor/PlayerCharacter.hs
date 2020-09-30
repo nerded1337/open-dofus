@@ -18,8 +18,6 @@
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 {-# LANGUAGE DeriveAnyClass         #-}
-{-# LANGUAGE DeriveFoldable         #-}
-{-# LANGUAGE DeriveFunctor          #-}
 {-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE DeriveTraversable      #-}
 {-# LANGUAGE DerivingStrategies     #-}
@@ -64,20 +62,16 @@ instance Show (PlayerCharacter a) where
       <> "}"
 
 instance HasActorId (PlayerCharacter a) where
-  {-# INLINE actorId #-}
   actorId pc =
     ActorId $ unCharacterId $ pc ^. playerCharacterBaseCharacter . characterId
 
 instance HasPosition (PlayerCharacter a) where
-  {-# INLINE position #-}
   position pc =
-    let pcPos = pc ^. playerCharacterCharacterPosition
-    in  (pcPos ^. characterPositionMapId, pcPos ^. characterPositionCellId)
+    (pcPos ^. characterPositionMapId, pcPos ^. characterPositionCellId)
+    where pcPos = pc ^. playerCharacterCharacterPosition
 
 instance HasDirection (PlayerCharacter a) where
-  {-# INLINE direction #-}
   direction = view playerCharacterDirection
 
 instance HasController (PlayerCharacter a) a where
-  {-# INLINE controller #-}
   controller = view playerCharacterController

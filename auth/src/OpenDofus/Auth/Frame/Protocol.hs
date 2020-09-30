@@ -17,6 +17,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+{-# LANGUAGE BangPatterns     #-}
+
 module OpenDofus.Auth.Frame.Protocol where
 
 import           OpenDofus.Auth.Frame.Authentication
@@ -26,19 +28,22 @@ import           OpenDofus.Core.Network.Client
 import           OpenDofus.Core.Network.Server
 import           OpenDofus.Game.Constant
 import           OpenDofus.Prelude
-import qualified RIO.ByteString.Lazy                 as BS
+import qualified RIO.ByteString.Lazy           as BS
 
 isProtocolValid :: BS.ByteString -> Bool
-isProtocolValid protocol = protocol == fromString (show gameProtocolVersion)
+isProtocolValid !protocol = protocol == fromString (show gameProtocolVersion)
 
 protocolHandler :: Salt -> AuthClientHandler
-protocolHandler salt = MessageHandlerCont $ go =<< asks (view handlerInputMessage)
-  where
-    go (ClientSent protocol)
-      | isProtocolValid protocol = pure $ authenticationHandler salt
-      | otherwise = do
-        sendMessage
-          (AuthFailure
-             (AuthFailureInvalidProtocol $ fromString $ show gameProtocolVersion))
-        pure $ MessageHandlerDisconnect mempty
-    go _ = pure $ MessageHandlerDisconnect mempty
+protocolHandler !salt = MessageHandlerCont $ go =<< asks
+  (view handlerInputMessage)
+ where
+  go (ClientSent !protocol)
+    | isProtocolValid protocol = pure $ authenticationHandler salt
+    | otherwise = do
+      sendMessage
+        (AuthFailure
+          (AuthFailureInvalidProtocol $ fromString $ show gameProtocolVersion)
+        )
+      pure $ MessageHandlerDisconnect mempty
+
+  go _ = pure $ MessageHandlerDisconnect mempty

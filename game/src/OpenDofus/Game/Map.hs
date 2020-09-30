@@ -37,6 +37,7 @@ import           Control.Concurrent             ( forkIO )
 import           Control.Concurrent.Chan.Unagi.NoBlocking
                                                as U
 import           Data.HashMap.Strict           as HM
+import qualified Data.Vector                   as V
 import           OpenDofus.Database
 import           OpenDofus.Game.Map.Parser     as X
 import           OpenDofus.Game.Network.Message
@@ -55,46 +56,41 @@ instance Show MapEventArgs where
 
 type MapEventReader m = MonadReader MapEventArgs m
 
-{-# INLINE raiseMapEvent #-}
 raiseMapEvent :: MonadIO m => MapController a b -> b -> m ()
 raiseMapEvent !ctl = liftIO . U.writeChan (ctl ^. mapControllerEventIn)
 
-{-# INLINE initializeMap #-}
 initializeMap
   :: (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m)
   => Map
   -> m (Either Text (MapInstance b))
-initializeMap m = case parseMap m of
+initializeMap !m = case parseMap m of
   Just parsedMap -> do
-    gfxLoadedMap <- runVolatile @GameDbConn
+    !gfxLoadedMap <- runVolatile @GameDbConn
       $ traverseFirst (traverse getInteractiveObjectByGfxId) parsedMap
-    actors <- newIORef mempty
+    !actors <- newIORef mempty
     pure $ Right $ bimap (fmap InteractiveObjectInstance . join)
                          (const actors)
                          gfxLoadedMap
   Nothing -> pure $ Left $ "Probably missing data key for map: " <> showText
     (m ^. mapId)
 
-{-# INLINE runMap #-}
 runMap
   :: MonadIO m
   => MapInstance GameClientController
   -> m (GameMapController, ThreadId)
-runMap m = do
-  (inChan, outChan) <- liftIO U.newChan
-  let ctl = MapController m inChan outChan
-  tid <- runMapController ctl
+runMap !m = do
+  (!inChan, !outChan) <- liftIO U.newChan
+  let !ctl = MapController m inChan outChan
+  !tid <- runMapController ctl
   pure (ctl, tid)
 
-{-# INLINE runMapController #-}
 runMapController :: MonadIO m => GameMapController -> m ThreadId
 runMapController !ctl = liftIO $ forkIO $ runOpenDofusApp True $ go =<< next
  where
-  next = liftIO $ U.tryReadChan (ctl ^. mapControllerEventOut)
   go !nextElement = do
-    e <- liftIO $ tryRead nextElement
+    !e <- liftIO $ tryRead nextElement
     case e of
-      Just mapEvent -> do
+      Just !mapEvent -> do
         logInfo
           $  "Processing map event: mapId="
           <> displayShow (ctl ^. mapControllerMap . mapInstanceTemplate . mapId)
@@ -103,17 +99,17 @@ runMapController !ctl = liftIO $ forkIO $ runOpenDofusApp True $ go =<< next
         runReaderT applyMapEvent $ MapEventArgs mapEvent ctl
         go =<< next
       Nothing -> do
-        threadDelay (1000000 `quot` 128)
+        threadDelay (1000000 `quot` 32000)
         go nextElement
 
-{-# INLINE dispatchToMap #-}
+  next = liftIO $ U.tryReadChan (ctl ^. mapControllerEventOut)
+
 dispatchToMap :: (MonadIO m, MapEventReader m, ToNetwork a) => a -> m ()
 dispatchToMap !msg = do
-  ctl <- asks (view mapEventArgsCtl)
+  !ctl <- asks (view mapEventArgsCtl)
   go $ ctl ^. mapControllerMap . mapInstanceActors
   where go = traverse_ (dispatchToActor msg) <=< readIORef
 
-{-# INLINE dispatchToActor #-}
 dispatchToActor
   :: (MonadIO m, MapEventReader m, ToNetwork a)
   => a
@@ -126,30 +122,29 @@ dispatchToActor !msg =
             . controller @(GameActor GameClientController) @GameClientController
   in  doSend <=< readController
 
-{-# INLINE readActors #-}
 readActors
-  :: (MonadIO m, MapEventReader m) => m [GameActor GameClientController]
+  :: (MonadIO m, MapEventReader m)
+  => m (V.Vector (GameActor GameClientController))
 readActors = do
-  ioActors <- asks
+  !ioActors <- asks
     (view $ mapEventArgsCtl . mapControllerMap . mapInstanceActors)
-  HM.elems <$> readIORef ioActors
+  V.fromList . HM.elems <$> readIORef ioActors
 
-{-# INLINE applyMapEvent #-}
 applyMapEvent :: (MonadIO m, MapEventReader m) => m ()
 applyMapEvent = go =<< asks (view mapEventArgsEvent)
  where
-  go (MapEventSpawnActor actor) = do
-    actors <- asks
+  go (MapEventActorSpawn !actor) = do
+    dispatchToMap (MapActorSpawn $ pure actor)
+    !actors <- asks
       (view $ mapEventArgsCtl . mapControllerMap . mapInstanceActors)
     modifyIORef' actors (HM.insert (actor ^. to actorId) actor)
-    dispatchToMap (MapActorSpawn [actor])
 
-  go (MapEventDespawnActor actor) = do
-    actors <- asks
+  go (MapEventActorDespawn !actor) = do
+    !actors <- asks
       (view $ mapEventArgsCtl . mapControllerMap . mapInstanceActors)
     modifyIORef' actors (HM.delete (actor ^. to actorId))
-    dispatchToMap (MapActorDespawn [actor])
+    dispatchToMap (MapActorDespawn $ pure actor)
 
-  go (MapEventDispatchInformations actor) = do
-    actors <- readActors
+  go (MapEventDispatchInformations !actor) = do
+    !actors <- readActors
     dispatchToActor (MapActorSpawn actors) actor

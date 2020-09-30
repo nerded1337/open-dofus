@@ -26,7 +26,8 @@ module OpenDofus.Game.Effect
   , HasEffectInstance(..)
   , parseEffect
   , parseDice
-  ) where
+  )
+where
 
 import           Data.Attoparsec.Text
 import           OpenDofus.Prelude
@@ -54,11 +55,10 @@ makeClassy ''EffectInstance
 parseDice :: Parser EffectDice
 parseDice =
   EffectDice
-  <$> signed decimal
-  <*> (char 'd' *> signed decimal)
-  <*> (char '+' *> signed decimal)
+    <$> signed decimal
+    <*> (char 'd' *> signed decimal)
+    <*> (char '+' *> signed decimal)
 
 parseEffect :: Parser EffectInstance
-parseEffect =
-  let hex = char '#' *> hexadecimal
-  in EffectInstance <$> hex <*> hex <*> hex <*> hex <*> parseDice
+parseEffect = EffectInstance <$> hex <*> hex <*> hex <*> hex <*> parseDice
+  where hex = char '#' *> hexadecimal

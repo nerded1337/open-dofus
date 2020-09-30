@@ -64,19 +64,16 @@ data MapInstanceT a b = MapInstance
 makeClassy ''MapInstanceT
 
 instance Bifunctor MapInstanceT where
-  {-# INLINE bimap #-}
   bimap f g m = m { _mapInstanceCells  = fmap f <$> _mapInstanceCells m
                   , _mapInstanceActors = g $ _mapInstanceActors m
                   }
 
 instance Bifoldable MapInstanceT where
-  {-# INLINE bifoldMap #-}
   bifoldMap f g m =
     foldMap (f . view cellInteractiveObjects) (m ^. mapInstanceCells)
       <> g (m ^. mapInstanceActors)
 
 instance Bitraversable MapInstanceT where
-  {-# INLINE bitraverse #-}
   bitraverse f g (MapInstance x y z) =
     MapInstance x <$> traverse (traverse f) y <*> g z
 

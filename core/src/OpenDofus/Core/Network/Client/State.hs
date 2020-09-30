@@ -17,12 +17,12 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+{-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE DerivingVia                #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
@@ -72,20 +72,20 @@ data HandlerInput a b = HandlerInput
 makeClassy ''HandlerInput
 
 instance HasClientState b => HasClientState (HandlerInput a b) where
-  {-# INLINE clientState #-}
   clientState = handlerInputClient . clientState
 
-{-# INLINE runMessageHandler #-}
 runMessageHandler
   :: MonadIO m
   => MessageHandler m a b
   -> HandlerInput a b
   -> m (MessageHandler m a b)
-runMessageHandler (MessageHandlerCont f) i =
+runMessageHandler (MessageHandlerCont !f) !i =
   runReaderT (unMessageHandlerCallback f) i
-runMessageHandler (MessageHandlerDisconnect f) i =
+
+runMessageHandler (MessageHandlerDisconnect !f) !i =
   runReaderT (unMessageHandlerCallback f) i
-runMessageHandler x _ = pure x
+
+runMessageHandler !x _ = pure x
 
 newtype MessageHandlerCallback a m b =
   MessageHandlerCallback
@@ -94,8 +94,7 @@ newtype MessageHandlerCallback a m b =
   deriving newtype (Functor, Applicative, Monad, MonadReader a)
 
 instance MonadIO (MessageHandlerCallback a IO) where
-  {-# INLINE liftIO #-}
-  liftIO x = MessageHandlerCallback $ ReaderT $ const x
+  liftIO !x = MessageHandlerCallback $ ReaderT $ const x
 
 data MessageHandler m a b = MessageHandlerLeaf
     | MessageHandlerDisconnect !(MessageHandlerCallback
@@ -106,34 +105,30 @@ data MessageHandler m a b = MessageHandlerLeaf
                          (MessageHandler m a b))
 
 instance Show (MessageHandler m a b) where
-  {-# INLINE show #-}
   show MessageHandlerLeaf           = "MessageHandlerLeaf"
   show (MessageHandlerDisconnect _) = "MessageHandlerDisconnect"
   show (MessageHandlerCont       _) = "MessageHandlerCont"
 
 instance Monad m => Semigroup (MessageHandler m a b) where
-  {-# INLINE (<>) #-}
-  MessageHandlerLeaf   <> x                    = x
-  x                    <> MessageHandlerLeaf   = x
-  MessageHandlerCont f <> MessageHandlerCont g = MessageHandlerCont $ f <> g
-  (MessageHandlerDisconnect f) <> (MessageHandlerCont g) =
+  MessageHandlerLeaf <> (!x)               = x
+  (!x)               <> MessageHandlerLeaf = x
+  (MessageHandlerCont !f) <> (MessageHandlerCont !g) =
+    MessageHandlerCont $ f <> g
+  (MessageHandlerDisconnect !f) <> (MessageHandlerCont !g) =
     MessageHandlerDisconnect $ f <> g
-  (MessageHandlerCont f) <> (MessageHandlerDisconnect g) =
+  (MessageHandlerCont !f) <> (MessageHandlerDisconnect !g) =
     MessageHandlerDisconnect $ f <> g
-  (MessageHandlerDisconnect f) <> (MessageHandlerDisconnect g) =
+  (MessageHandlerDisconnect !f) <> (MessageHandlerDisconnect !g) =
     MessageHandlerDisconnect $ f <> g
 
 instance Monad m => Monoid (MessageHandler m a b) where
-  {-# INLINE mempty #-}
   mempty = MessageHandlerLeaf
 
 instance (Semigroup b, Monad m) => Semigroup (MessageHandlerCallback a m b) where
-  {-# INLINE (<>) #-}
-  f <> g = do
-    x <- f
-    y <- g
+  (!f) <> (!g) = do
+    !x <- f
+    !y <- g
     pure $ x <> y
 
 instance (Monoid b, Monad m) => Monoid (MessageHandlerCallback a m b) where
-  {-# INLINE mempty #-}
   mempty = pure mempty

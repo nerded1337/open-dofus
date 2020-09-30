@@ -1,3 +1,4 @@
+
 -- GameMapFrame.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
@@ -21,7 +22,6 @@ module OpenDofus.Game.Frame.Map
   ( mapHandler
   )
 where
-
 
 import           OpenDofus.Core.Network.Server
 import           OpenDofus.Data.Constructible

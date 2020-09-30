@@ -14,6 +14,7 @@
 -- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 -- GNU General Public License for more details.
 
+
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
@@ -57,27 +58,22 @@ data ActorRestriction = ActorRestrictionCantAssault
 instance AsEnumSet ActorRestriction where
   type EnumSetRep ActorRestriction = Word16
 
-{-# INLINE defaultRestrictions #-}
+
 defaultRestrictions :: ActorRestrictionSet
 defaultRestrictions = E.singleton ActorRestrictionCanMoveInAllDirections
 
-{-# INLINE addRestriction #-}
 addRestriction :: ActorRestriction -> ActorRestrictionSet -> ActorRestrictionSet
 addRestriction = E.insert
 
-{-# INLINE removeRestriction #-}
 removeRestriction
   :: ActorRestriction -> ActorRestrictionSet -> ActorRestrictionSet
 removeRestriction = E.delete
 
-{-# INLINE hasRestriction #-}
 hasRestriction :: ActorRestriction -> ActorRestrictionSet -> Bool
 hasRestriction = E.member
 
-{-# INLINE decodeRestrictions #-}
 decodeRestrictions :: EnumSetRep ActorRestriction -> ActorRestrictionSet
 decodeRestrictions = fromRaw
 
-{-# INLINE encodeRestrictions #-}
 encodeRestrictions :: ActorRestrictionSet -> EnumSetRep ActorRestriction
 encodeRestrictions = toRaw

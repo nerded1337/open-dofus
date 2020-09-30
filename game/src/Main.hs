@@ -22,8 +22,9 @@
 
 module Main where
 
-import           Data.HashMap.Strict           as HM
 import qualified Data.ByteString.Lazy.Char8    as BS
+import           Data.HashMap.Strict           as HM
+import qualified Data.Vector                   as V
 import           Database.Beam.Postgres
 import           OpenDofus.Core.Network.Server
 import           OpenDofus.Database
@@ -47,14 +48,17 @@ app = do
   gameDbPool <- createConnPool
     $ ConnectInfo "localhost" 5432 "nerded" "nerded" "opendofus_game"
   logInfo "Loading game maps"
-  maps <- runReaderT
+  (maps, _) <- runReaderT
     (do
       templates <- runVolatile @GameDbConn $ do
         i <- getMapIds
         traverse getMapById i
-      fmap rights $ traverse initializeMap $ catMaybes templates
+      res <- traverse initializeMap $ V.fromList $ catMaybes $ V.toList
+        templates
+      pure (V.fromList $ rights (V.toList res), lefts (V.toList res))
     )
     gameDbPool
+  logInfo $ "Maps loaded: " <> displayShow (length maps)
   logInfo "Running map controllers"
   mapCtls <-
     HM.fromList
@@ -62,13 +66,13 @@ app = do
           ( (\c -> (c ^. (mapControllerMap . mapInstanceTemplate . mapId), c))
           . fst
           )
-    <$> traverse runMap maps
+    <$> (V.toList <$> traverse runMap maps)
   serv <-
     GameServer
     <$> mkServer 8081 1000 128 mkClient
     <*> pure authDbPool
     <*> pure gameDbPool
-    <*> pure (WorldId 604)
+    <*> pure (WorldId 614)
     <*> pure mapCtls
   logInfo "Starting game server"
   result <- startServer serv (loggingHandler <> helloGameHandler)

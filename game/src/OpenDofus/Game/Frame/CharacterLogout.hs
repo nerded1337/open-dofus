@@ -1,4 +1,4 @@
--- Constant.hs ---
+-- CharacterLogout.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
 
@@ -17,22 +17,27 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 
-module OpenDofus.Game.Constant
-  ( ProtocolVersion
-  , gameProtocolVersion
+module OpenDofus.Game.Frame.CharacterLogout
+  ( characterLogoutHandler
   )
 where
 
+import           OpenDofus.Core.Network.Server
+import           OpenDofus.Game.Map
+import           OpenDofus.Game.Server
 import           OpenDofus.Prelude
 
-newtype ProtocolVersion =
-  ProtocolVersion (Int, Int, Int)
+characterLogoutHandler
+  :: PlayerCharacter GameClientController
+  -> GameMapController
+  -> GameClientHandler
+characterLogoutHandler !pcRef !mapCtl = MessageHandlerCont $ go =<< asks
+  (view handlerInputMessage)
+ where
+  go ClientDisconnected = do
+    raiseMapEvent mapCtl $ MapEventActorDespawn $ GameActorPC pcRef
+    pure MessageHandlerLeaf
 
-instance Show ProtocolVersion where
-  show (ProtocolVersion (major, minor, revision)) =
-    show major <> "." <> show minor <> "." <> show revision
-
-gameProtocolVersion :: ProtocolVersion
-gameProtocolVersion = ProtocolVersion (1, 33, 1)
+  go _ = pure $ characterLogoutHandler pcRef mapCtl

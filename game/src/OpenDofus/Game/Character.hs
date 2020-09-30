@@ -28,6 +28,7 @@ module OpenDofus.Game.Character
 where
 
 import           Data.ByteString.Lazy.Builder  as BS
+import qualified Data.Vector                   as V
 import           OpenDofus.Core.Network.Client
 import           OpenDofus.Database
 import           OpenDofus.Prelude
@@ -47,7 +48,6 @@ data CharacterListInfo = CharacterListInfo
 makeClassy ''CharacterListInfo
 
 instance ToNetwork CharacterListInfo where
-  {-# INLINE toNetwork #-}
   toNetwork (CharacterListInfo i n l gi c1 c2 c3 ml wid) =
     "|"
       <> word64Dec (unCharacterId i)
@@ -81,8 +81,9 @@ instance ToNetwork CharacterListInfo where
          ";"
       <> word32Dec (unCharacterMaxLevel ml)
 
-getCharacterList :: WorldId -> AccountId -> GameQuery [CharacterListInfo]
-getCharacterList wid accId = fmap go <$> GameQuery
+getCharacterList
+  :: WorldId -> AccountId -> GameQuery (V.Vector CharacterListInfo)
+getCharacterList wid accId = V.fromList . fmap go <$> GameQuery
   (runSelectReturningList $ select $ do
     c  <- all_ (gameDb ^. character)
     cl <- all_ (gameDb ^. characterLook)

@@ -50,69 +50,55 @@ class Constructible a where
 
 instance Constructible [a] where
   type Elem [a] = a
-  {-# INLINE cons #-}
   cons = (:)
-  {-# INLINE uncons #-}
   uncons (x:xs) = Just (x, xs)
   uncons []     = Nothing
 
 instance Constructible T.Text where
   type Elem T.Text = Char
-  {-# INLINE cons #-}
   cons = T.cons
-  {-# INLINE uncons #-}
   uncons = T.uncons
 
 instance Constructible (V.Vector a) where
   type Elem (V.Vector a) = a
-  {-# INLINE cons #-}
   cons = V.cons
-  {-# INLINE uncons #-}
   uncons v
     | len == 0  = Nothing
     | otherwise = Just (v V.! 0, V.tail v)
     where
       len :: Int
-      len = V.length v
+      !len = V.length v
 
 instance VU.Unbox a => Constructible (VU.Vector a) where
   type Elem (VU.Vector a) = a
-  {-# INLINE cons #-}
   cons = VU.cons
-  {-# INLINE uncons #-}
-  uncons v
+  uncons !v
     | len == 0  = Nothing
     | otherwise = Just (v VU.! 0, VU.tail v)
     where
       len :: Int
-      len = VU.length v
+      !len = VU.length v
 
 instance Constructible (S.Seq a) where
   type Elem (S.Seq a) = a
-  {-# INLINE cons #-}
   cons = (S.<|)
-  {-# INLINE uncons #-}
-  uncons s = case S.viewl s of
+  uncons !s = case S.viewl s of
     (x S.:< xs) -> Just (x, xs)
     _           -> Nothing
 
 instance Constructible BS.ByteString where
   type Elem BS.ByteString = Char
-  {-# INLINE cons #-}
   cons = BS.cons
-  {-# INLINE uncons #-}
   uncons = BS.uncons
 
 instance Constructible LBS.ByteString where
   type Elem LBS.ByteString = Char
-  {-# INLINE cons #-}
   cons = LBS.cons
-  {-# INLINE uncons #-}
   uncons = LBS.uncons
 
 intersperseC :: Constructible a => Elem a -> a -> a
-intersperseC a (x :- xs) =
-  let go !(x' :- xs') = a :- (x' :- go xs')
-      go !xs'         = xs'
-  in x :- go xs
+intersperseC !a (x :- xs) = x :- go xs
+  where
+    go (x' :- xs') = a :- (x' :- go xs')
+    go !xs'         = xs'
 intersperseC _ xs                = xs

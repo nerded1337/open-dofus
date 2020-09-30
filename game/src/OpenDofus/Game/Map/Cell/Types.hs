@@ -62,6 +62,7 @@ instance Enum CellMovementType where
   toEnum 6 = CellMovementTypeUnknown6
   toEnum 7 = CellMovementTypePath
   toEnum x = error $ "Invalid cell movement type: " <> show x
+
   fromEnum CellMovementTypeNonWalkable = 0
   fromEnum CellMovementTypeDoor        = 1
   fromEnum CellMovementTypeTrigger     = 2

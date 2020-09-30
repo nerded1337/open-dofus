@@ -30,11 +30,12 @@ module OpenDofus.Core.Network.Server.State
   ( HasServerState(..)
   , HasClientType(..)
   , ServerState(..)
-  ) where
+  )
+where
 
 import           Data.Kind
 import qualified Data.Map.Strict               as M
-import           Data.Primitive                (MutableByteArray)
+import           Data.Primitive                 ( MutableByteArray )
 import qualified Data.Vector.Unboxed           as VU
 import           GHC.Exts
 
@@ -54,7 +55,7 @@ data ServerState a = ServerState
     { _port                 :: {-# UNPACK #-} !Word16
     , _maxClient            :: {-# UNPACK #-} !MaxClient
     , _receiveBufferSize    :: {-# UNPACK #-} !ReceiveBufferSize
-    , _makeClient           :: ClientCtor a
+    , _makeClient           :: !(ClientCtor a)
     , _clients              :: {-# UNPACK #-} !(TVar (M.Map NetworkId a))
     , _clientSlots          :: {-# UNPACK #-} !(TVar (VU.Vector Int))
     , _receiveBufferSegment :: {-# UNPACK #-} !(MutableByteArray RealWorld)
@@ -63,5 +64,4 @@ data ServerState a = ServerState
 makeClassy ''ServerState
 
 instance HasServerState a b => HasServerState (HandlerInput a b) b where
-  {-# INLINE serverState #-}
   serverState = handlerInputServer . serverState
