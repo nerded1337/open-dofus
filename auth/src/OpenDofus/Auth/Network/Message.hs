@@ -28,8 +28,7 @@ module OpenDofus.Auth.Network.Message
 where
 
 import Control.Monad.Random
-  ( Monad,
-    MonadRandom (..),
+  ( MonadRandom (..),
     RandT,
     RandomGen,
     replicateM,
