@@ -1,7 +1,7 @@
 .stack-work/
 dist-newstyle
 bot
-dofus.cabal
+*.cabal
 data/
 *.lock
 *~
