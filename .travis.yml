@@ -1,5 +1,0 @@
-language: nix
-nix: 2.3.3
-script:
-  - nix-env -i -f tools.nix
-  - stack test --ghc-options "-O0"

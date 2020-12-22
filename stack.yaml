@@ -5,35 +5,35 @@ allow-newer: true
 system-ghc: true
 
 packages:
-- core
-- db
-- auth
-- game
-- lang-downloader
+  - core
+  - db
+  - auth
+  - game
+  - lang-downloader
 
 extra-deps:
-        - git: https://github.com/haskell-Z/z-data
-          commit: 7ee37c02c6bf7be86ebea40ab7641fcdaebde3cf
-        - git: https://github.com/haskell-Z/z-io
-          commit: 95a4c38ea3ed472fb5c7e7c99f127fef65f5257e
-        - git: https://github.com/spl/dlist
-          commit: 157a97db62d7780e6793408b0bf408a11cd36f22
-        - git: https://github.com/composewell/streamly
-          commit: 9fefed37d5da5aa103f93ded65b1335903651e26
-        - git: https://github.com/nerded1337/bitwise-enum
-          commit: 10c101c560f92e84fedbcd7fb1e7213dc4b37ad1
-        - git: https://github.com/nerded1337/asil
-          commit: 751e5b830cc34d189b7b5049c6d85c5445c8e360
-        - git: https://github.com/haskell-beam/beam
-          commit: 0d9f6d8db8115f756a5e8175adf7fc1c95328019
-          subdirs:
-            - beam-core
-            - beam-postgres
-            - beam-migrate
-        - aeson-extra-0.4.1.3@sha256:8ad8e4d28e46280ea98af2e94dcaaf524c396c9d91b1eba867961efc6e7f923f,2997
-        - dependent-map-0.4.0.0@sha256:ca2b131046f4340a1c35d138c5a003fe4a5be96b14efc26291ed35fd08c62221,1657
-        - dependent-sum-0.7.1.0@sha256:5599aa89637db434431b1dd3fa7c34bc3d565ee44f0519bfbc877be1927c2531,2068
-        - constraints-extras-0.3.0.2@sha256:013b8d0392582c6ca068e226718a4fe8be8e22321cc0634f6115505bf377ad26,1853
+  - git: https://github.com/haskell-beam/beam
+    commit: 0d9f6d8db8115f756a5e8175adf7fc1c95328019
+    subdirs:
+      - beam-core
+      - beam-postgres
+      - beam-migrate
+  - git: https://github.com/haskell-Z/z-data
+    commit: 7ee37c02c6bf7be86ebea40ab7641fcdaebde3cf
+  - git: https://github.com/haskell-Z/z-io
+    commit: 95a4c38ea3ed472fb5c7e7c99f127fef65f5257e
+  - git: https://github.com/spl/dlist
+    commit: 157a97db62d7780e6793408b0bf408a11cd36f22
+  - git: https://github.com/composewell/streamly
+    commit: 9fefed37d5da5aa103f93ded65b1335903651e26
+  - git: https://github.com/nerded1337/bitwise-enum
+    commit: 10c101c560f92e84fedbcd7fb1e7213dc4b37ad1
+  - git: https://github.com/nerded1337/asil
+    commit: 751e5b830cc34d189b7b5049c6d85c5445c8e360
+  - aeson-extra-0.4.1.3@sha256:8ad8e4d28e46280ea98af2e94dcaaf524c396c9d91b1eba867961efc6e7f923f,2997
+  - dependent-map-0.4.0.0@sha256:ca2b131046f4340a1c35d138c5a003fe4a5be96b14efc26291ed35fd08c62221,1657
+  - dependent-sum-0.7.1.0@sha256:5599aa89637db434431b1dd3fa7c34bc3d565ee44f0519bfbc877be1927c2531,2068
+  - constraints-extras-0.3.0.2@sha256:013b8d0392582c6ca068e226718a4fe8be8e22321cc0634f6115505bf377ad26,1853
 
 nix:
-        packages: [ zlib postgresql ]
+  packages: [ zlib postgresql ]
