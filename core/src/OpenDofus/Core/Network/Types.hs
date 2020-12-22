@@ -1,6 +1,12 @@
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 -- Types.hs ---
 
--- Copyright (C) 2019 Nerd Ed
+-- Copyright (C) 2020 Nerd Ed
 
 -- Author: Nerd Ed <nerded.nerded@gmail.com>
 
@@ -17,37 +23,17 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE FunctionalDependencies     #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell            #-}
-
 module OpenDofus.Core.Network.Types
-  ( NetworkId(..)
-  , HasNetworkId(..)
-  , MaxClient(..)
-  , ReceiveBufferSize(..)
-  ) where
+  ( NetworkId (..),
+    HasNetworkId (..),
+  )
+where
 
-import           OpenDofus.Prelude
+import OpenDofus.Prelude
 
-newtype MaxClient =
-  MaxClient
-    { unMaxClient :: Int
-    }
-  deriving newtype (Show, Eq, Ord, Num, Enum)
-
-newtype ReceiveBufferSize =
-  ReceiveBufferSize
-    { unReceiveBufferSize :: Int
-    }
-  deriving newtype (Show, Eq, Ord, Num, Enum)
-
-newtype NetworkId =
-  NetworkId
-    { unNetworkId :: UUID
-    }
-  deriving newtype (Show, Eq, Ord)
+newtype NetworkId = NetworkId
+  { unNetworkId :: UUID
+  }
+  deriving newtype (Show, Eq, Ord, Hashable)
 
 makeClassy ''NetworkId

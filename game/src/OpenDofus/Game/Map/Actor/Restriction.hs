@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeFamilies #-}
+
 -- Restriction.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
@@ -14,66 +16,69 @@
 -- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 -- GNU General Public License for more details.
 
-
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE TypeFamilies #-}
-
 module OpenDofus.Game.Map.Actor.Restriction
-  ( ActorRestriction(..)
-  , ActorRestrictionSet
-  , defaultRestrictions
-  , addRestriction
-  , removeRestriction
-  , hasRestriction
-  , decodeRestrictions
-  , encodeRestrictions
+  ( ActorRestriction (..),
+    ActorRestrictionSet,
+    defaultRestrictions,
+    addRestriction,
+    removeRestriction,
+    hasRestriction,
+    decodeRestrictions,
+    encodeRestrictions,
   )
 where
 
-import           Data.Enum.Set                 as E
-import           OpenDofus.Prelude
+import Data.Enum.Set as E
+import OpenDofus.Prelude
 
 type ActorRestrictionSet = EnumSet ActorRestriction
 
-data ActorRestriction = ActorRestrictionCantAssault
-    | ActorRestrictionCantChallenge
-    | ActorRestrictionCantExchange
-    | ActorRestrictionCanAttack
-    | ActorRestrictionCantChatToAll
-    | ActorRestrictionCantBeMerchant
-    | ActorRestrictionCantUseObject
-    | ActorRestrictionCantInteractWithTaxCollector
-    | ActorRestrictionCantUseInteractiveObject
-    | ActorRestrictionCantSpeakToNpc
-    | ActorRestrictionUnknow1024
-    | ActorRestrictionUnknow2048
-    | ActorRestrictionCanAttackDungeonMonstersWhenMutant
-    | ActorRestrictionCanMoveInAllDirections
-    | ActorRestrictionCanAttackMonstersAnywhereWhenMutant
-    | ActorRestrictionCantInteractWithPrism
-    deriving (Bounded, Enum, Eq, Ord, Show)
+data ActorRestriction
+  = ActorRestrictionCantAssault
+  | ActorRestrictionCantChallenge
+  | ActorRestrictionCantExchange
+  | ActorRestrictionCanAttack
+  | ActorRestrictionCantChatToAll
+  | ActorRestrictionCantBeMerchant
+  | ActorRestrictionCantUseObject
+  | ActorRestrictionCantInteractWithTaxCollector
+  | ActorRestrictionCantUseInteractiveObject
+  | ActorRestrictionCantSpeakToNpc
+  | ActorRestrictionUnknow1024
+  | ActorRestrictionUnknow2048
+  | ActorRestrictionCanAttackDungeonMonstersWhenMutant
+  | ActorRestrictionCanMoveInAllDirections
+  | ActorRestrictionCanAttackMonstersAnywhereWhenMutant
+  | ActorRestrictionCantInteractWithPrism
+  deriving (Bounded, Enum, Eq, Ord, Show)
 
 instance AsEnumSet ActorRestriction where
   type EnumSetRep ActorRestriction = Word16
 
-
 defaultRestrictions :: ActorRestrictionSet
 defaultRestrictions = E.singleton ActorRestrictionCanMoveInAllDirections
+{-# INLINE defaultRestrictions #-}
 
 addRestriction :: ActorRestriction -> ActorRestrictionSet -> ActorRestrictionSet
 addRestriction = E.insert
+{-# INLINE addRestriction #-}
 
-removeRestriction
-  :: ActorRestriction -> ActorRestrictionSet -> ActorRestrictionSet
+removeRestriction ::
+  ActorRestriction -> ActorRestrictionSet -> ActorRestrictionSet
 removeRestriction = E.delete
+{-# INLINE removeRestriction #-}
 
 hasRestriction :: ActorRestriction -> ActorRestrictionSet -> Bool
 hasRestriction = E.member
+{-# INLINE hasRestriction #-}
 
 decodeRestrictions :: EnumSetRep ActorRestriction -> ActorRestrictionSet
 decodeRestrictions = fromRaw
+{-# INLINE decodeRestrictions #-}
 
 encodeRestrictions :: ActorRestrictionSet -> EnumSetRep ActorRestriction
 encodeRestrictions = toRaw
+{-# INLINE encodeRestrictions #-}

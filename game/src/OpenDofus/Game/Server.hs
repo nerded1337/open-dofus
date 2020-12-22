@@ -1,3 +1,17 @@
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+
 -- Server.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
@@ -17,94 +31,109 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE BangPatterns          #-}
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE DerivingVia           #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE StandaloneDeriving    #-}
-{-# LANGUAGE TemplateHaskell       #-}
-{-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeOperators         #-}
-
 module OpenDofus.Game.Server
-  ( module X
-  , GameClient(..)
-  , HasGameClient(..)
-  , GameServer(..)
-  , HasGameServer(..)
-  , GameHandlerCallback
-  , GameClientHandler
-  , GameHandlerInput
-  , GameMapController
-  , GameClientController
-  , mkClient
+  ( GameClient (..),
+    HasGameClient (..),
+    GameServer (..),
+    HasGameServer (..),
+    GameHandler,
+    GameState (..),
   )
 where
 
-import           OpenDofus.Core.Network.Client as X
-import           OpenDofus.Core.Network.Server as X
-import           OpenDofus.Core.Network.Types  as X
-import           OpenDofus.Database            as X
-import           OpenDofus.Game.Map.Types      as X
-import           OpenDofus.Prelude
+import OpenDofus.Core.Network.Client
+  ( ClientConnection,
+    HasClientConnection (clientConnection),
+  )
+import OpenDofus.Core.Network.Server
+  ( ClientHandler,
+    HandlerInput,
+    HasClientType (..),
+    HasMessageType (..),
+    HasServerState (..),
+    ServerState,
+    handlerInputServer,
+  )
+import OpenDofus.Core.Network.Types (HasNetworkId (..))
+import OpenDofus.Database
+  ( Account,
+    AuthDbConn (AuthDbConn),
+    GameDbConn (GameDbConn),
+    HasConnectPool (..),
+    Map,
+    MapId,
+    Pool,
+    WorldId,
+  )
+import OpenDofus.Game.Map.Actor
+import OpenDofus.Game.Map.Types
+  ( MapController,
+  )
+import OpenDofus.Game.Network.Message
+import OpenDofus.Prelude
+import qualified StmContainers.Map as M
 
-newtype GameClient =
-  GameClient
-    { _gameClientState :: ClientState
-    }
+data GameState
+  = Greeting
+  | CharacterSelection !Account
+  | GameCreation !Account !PlayerCharacter
+  | InGame !Account !PlayerCharacter !Map
+
+makePrisms ''GameState
+
+data GameClient = GameClient
+  { _gameClientState :: {-# UNPACK #-} !(IORef GameState),
+    _gameClientConnection :: {-# UNPACK #-} !ClientConnection
+  }
 
 makeClassy ''GameClient
 
-type GameClientController = IORef (Maybe GameClient)
-
-type GameMapController
-  = MapController GameClientController (MapEvent GameClientController)
+instance Show GameClient where
+  show = show . view gameClientConnection
 
 data GameServer = GameServer
-    { _gameServerState      :: {-# UNPACK #-} !(ServerState GameClient)
-    , _gameServerAuthDbPool :: {-# UNPACK #-} !(Pool AuthDbConn)
-    , _gameServerGameDbPool :: {-# UNPACK #-} !(Pool GameDbConn)
-    , _gameServerWorldId    :: {-# UNPACK #-} !WorldId
-    , _gameServerMaps       :: !(HashMap MapId GameMapController)
-    }
+  { _gameServerState :: {-# UNPACK #-} !(ServerState IO GameClient),
+    _gameServerAuthDbPool :: {-# UNPACK #-} !(Pool AuthDbConn),
+    _gameServerGameDbPool :: {-# UNPACK #-} !(Pool GameDbConn),
+    _gameServerWorldId :: {-# UNPACK #-} !WorldId,
+    _gameServerMapControllers :: !(HashMap MapId MapController),
+    _gameServerPlayerActors :: {-# UNPACK #-} !(M.Map ActorId GameClient)
+  }
 
 makeClassy ''GameServer
 
-type GameHandlerInput = HandlerInput GameServer GameClient
-
-type GameHandlerCallback a = MessageHandlerCallback GameHandlerInput IO a
-
-type GameClientHandler = MessageHandler IO GameServer GameClient
-
-instance HasConnectPool GameServer GameDbConn where
-  getConnectionPool = view gameServerGameDbPool
-
-instance HasConnectPool GameServer AuthDbConn where
-  getConnectionPool = view gameServerAuthDbPool
+type GameHandler a = ClientHandler IO GameServer a
 
 instance HasClientType GameServer where
   type ClientTypeOf GameServer = GameClient
 
-instance HasServerState GameServer GameClient where
-  serverState = gameServerState
+instance HasMessageType GameServer where
+  type MessageTypeOf GameServer = GameMessage
 
-instance Show GameClient where
-  show (GameClient s) =
-    "GameClient { " <> show (s ^. clientStateNetworkId) <> " }"
+instance HasConnectPool GameServer GameDbConn where
+  getConnectionPool = view gameServerGameDbPool
+  {-# INLINE getConnectionPool #-}
+
+instance HasConnectPool GameServer AuthDbConn where
+  getConnectionPool = view gameServerAuthDbPool
+  {-# INLINE getConnectionPool #-}
+
+instance HasConnectPool (HandlerInput GameServer) AuthDbConn where
+  getConnectionPool = getConnectionPool . view handlerInputServer
+  {-# INLINE getConnectionPool #-}
+
+instance HasConnectPool (HandlerInput GameServer) GameDbConn where
+  getConnectionPool = getConnectionPool . view handlerInputServer
+  {-# INLINE getConnectionPool #-}
+
+instance HasServerState GameServer IO GameClient where
+  serverState = gameServerState
+  {-# INLINE serverState #-}
 
 instance HasClientConnection GameClient where
-  clientConnection = clientConnection
-
-instance HasClientState GameClient where
-  clientState = gameClientState
+  clientConnection = gameClientConnection
+  {-# INLINE clientConnection #-}
 
 instance HasNetworkId GameClient where
-  networkId = gameClientState . clientStateNetworkId
-
-mkClient :: NetworkId -> ClientBuffer -> ClientConnection -> STM GameClient
-mkClient !i !b !c = pure $ GameClient (ClientState b c i)
+  networkId = clientConnection . networkId
+  {-# INLINE networkId #-}

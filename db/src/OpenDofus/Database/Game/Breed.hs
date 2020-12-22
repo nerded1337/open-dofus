@@ -1,6 +1,17 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ImpredicativeTypes #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+
 -- Breed.hs ---
 
--- Copyright (C) 2019 Nerd Ed
+-- Copyright (C) 2020 Nerd Ed
 
 -- Author: Nerd Ed <nerded.nerded@gmail.com>
 
@@ -17,60 +28,52 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE DeriveAnyClass             #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE DerivingVia                #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ImpredicativeTypes         #-}
-{-# LANGUAGE NoMonomorphismRestriction  #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# OPTIONS_GHC -Wno-missing-signatures #-}
-
 module OpenDofus.Database.Game.Breed where
 
-import           Database.Beam
-import           Database.Beam.Backend
-import           Database.Beam.Migrate
-import           Database.Beam.Postgres
-import           Database.Beam.Postgres.Syntax
-import           OpenDofus.Database.Game.Spell
-import           OpenDofus.Prelude
+import Database.Beam
+import Database.Beam.Backend
+import Database.Beam.Migrate
+import Database.Beam.Postgres
+import Database.Beam.Postgres.Syntax
+import OpenDofus.Database.Game.Spell
+import OpenDofus.Prelude
 
-newtype BreedId =
-  BreedId
-    { unBreedId :: Int
-    }
-  deriving newtype ( Show
-                   , Ord
-                   , Eq
-                   , Num
-                   , Real
-                   , Enum
-                   , Integral
-                   , FromBackendRow Postgres
-                   , HasSqlEqualityCheck Postgres
-                   , HasDefaultSqlDataType Postgres
-                   , HasSqlValueSyntax PgValueSyntax
-                   )
+newtype BreedId = BreedId
+  { unBreedId :: Word32
+  }
+  deriving newtype
+    ( Show,
+      Ord,
+      Eq,
+      Num,
+      Real,
+      Enum,
+      Integral,
+      FromBackendRow Postgres,
+      HasSqlEqualityCheck Postgres,
+      HasDefaultSqlDataType Postgres,
+      HasSqlValueSyntax PgValueSyntax
+    )
 
-data BreedCharacteristicCostT f =
-  BreedCharacteristicCost
-    { _breedCharacteristicCostBreed   :: !(PrimaryKey BreedT f)
-    , _breedCharacteristicCostElement :: !(C f Int)
-    , _breedCharacteristicCostFloor   :: !(C f Int)
-    , _breedCharacteristicCostValue   :: !(C f Int)
-    , _breedCharacteristicCostBonus   :: !(C f Int)
-    }
+data BreedCharacteristicCostT f = BreedCharacteristicCost
+  { _breedCharacteristicCostBreed :: !(PrimaryKey BreedT f),
+    _breedCharacteristicCostElement :: !(C f Word32),
+    _breedCharacteristicCostFloor :: !(C f Word32),
+    _breedCharacteristicCostValue :: !(C f Word32),
+    _breedCharacteristicCostBonus :: !(C f Word32)
+  }
   deriving (Generic, Beamable)
 
 instance Table BreedCharacteristicCostT where
-  data PrimaryKey BreedCharacteristicCostT
-       f = BreedCharacteristicCostId !(PrimaryKey BreedT f)
-                                     !(C f Int)
-                                     !(C f Int)
-             deriving (Generic, Beamable)
+  data
+    PrimaryKey
+      BreedCharacteristicCostT
+      f
+    = BreedCharacteristicCostId
+        !(PrimaryKey BreedT f)
+        !(C f Word32)
+        !(C f Word32)
+    deriving (Generic, Beamable)
   primaryKey =
     BreedCharacteristicCostId
       <$> _breedCharacteristicCostBreed
@@ -79,47 +82,71 @@ instance Table BreedCharacteristicCostT where
 
 type BreedCharacteristicCost = BreedCharacteristicCostT Identity
 
-BreedCharacteristicCost (BreedPK (LensFor characteristicCostBred)) (LensFor characteristicCostElement) (LensFor characteristicCostFloor) (LensFor characteristicCostValue) (LensFor characteristicCostBoost)
-  = tableLenses
+deriving instance Eq BreedCharacteristicCost
 
-data BreedSpellT f =
-  BreedSpell
-    { _breedSpellBreed :: !(PrimaryKey BreedT f)
-    , _breedSpellSpell :: !(PrimaryKey SpellT f)
-    }
+deriving instance Show BreedCharacteristicCost
+
+BreedCharacteristicCost
+  (BreedPK (LensFor characteristicCostBred))
+  (LensFor characteristicCostElement)
+  (LensFor characteristicCostFloor)
+  (LensFor characteristicCostValue)
+  (LensFor characteristicCostBoost) =
+    tableLenses
+
+data BreedSpellT f = BreedSpell
+  { _breedSpellBreed :: !(PrimaryKey BreedT f),
+    _breedSpellSpell :: !(PrimaryKey SpellT f)
+  }
   deriving (Generic, Beamable)
 
 instance Table BreedSpellT where
-  data PrimaryKey BreedSpellT f = BreedSpellId !(PrimaryKey BreedT f)
-                                               !(PrimaryKey SpellT f)
-                                  deriving (Generic, Beamable)
+  data PrimaryKey BreedSpellT f
+    = BreedSpellId
+        !(PrimaryKey BreedT f)
+        !(PrimaryKey SpellT f)
+    deriving (Generic, Beamable)
   primaryKey = BreedSpellId <$> _breedSpellBreed <*> _breedSpellSpell
 
 type BreedSpell = BreedSpellT Identity
 
-BreedSpell (BreedPK (LensFor breedSpellBreed)) (SpellPK (LensFor breedSpellSpell))
-  = tableLenses
+deriving instance Eq BreedSpell
 
-data BreedT f =
-  Breed
-    { _breedId               :: !(C f BreedId)
-    , _breedSmallName        :: !(C f Text)
-    , _breedLongName         :: !(C f Text)
-    , _breedSmallDescription :: !(C f Text)
-    , _breedDescription      :: !(C f Text)
-    }
+deriving instance Show BreedSpell
+
+BreedSpell (BreedPK (LensFor breedSpellBreed)) (SpellPK (LensFor breedSpellSpell)) =
+  tableLenses
+
+data BreedT f = Breed
+  { _breedId :: !(C f BreedId),
+    _breedSmallName :: !(C f Text),
+    _breedLongName :: !(C f Text),
+    _breedSmallDescription :: !(C f Text),
+    _breedDescription :: !(C f Text)
+  }
   deriving (Generic, Beamable)
 
 instance Table BreedT where
   data PrimaryKey BreedT f = BreedPK !(C f BreedId)
-                             deriving (Generic, Beamable)
+    deriving (Generic, Beamable)
   primaryKey = BreedPK . _breedId
 
 type Breed = BreedT Identity
+
+deriving instance Eq Breed
+
 deriving instance Show Breed
 
 type BreedPK = PrimaryKey BreedT Identity
+
+deriving instance Eq BreedPK
+
 deriving instance Show BreedPK
 
-Breed (LensFor breedId) (LensFor breedSmallName) (LensFor breedLongName) (LensFor breedSmallDescription) (LensFor breedDescription)
-  = tableLenses
+Breed
+  (LensFor breedId)
+  (LensFor breedSmallName)
+  (LensFor breedLongName)
+  (LensFor breedSmallDescription)
+  (LensFor breedDescription) =
+    tableLenses

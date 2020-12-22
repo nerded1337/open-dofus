@@ -1,3 +1,6 @@
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 -- Skill.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
@@ -17,52 +20,52 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module OpenDofus.Database.SWF.Skill
-  ( loadSkills
+  ( loadSkills,
   )
 where
 
-import           Data.Aeson
-import qualified Data.HashMap.Strict           as H
-import           Data.Maybe
-import           Data.Either
-import qualified Data.Text                     as T
-import qualified Data.Text.Read                as T
-import qualified Data.Vector                   as V
-import           OpenDofus.Database.Game.InteractiveObject
-import           OpenDofus.Database.Game.Item
-import           OpenDofus.Database.Game.Job
-import           OpenDofus.Database.Game.Skill
+import Data.Aeson
+import Data.Either
+import qualified Data.HashMap.Strict as H
+import Data.Maybe
+import qualified Data.Text as T
+import qualified Data.Text.Read as T
+import qualified Data.Vector as V
+import OpenDofus.Database.Game.InteractiveObject
+import OpenDofus.Database.Game.Item
+import OpenDofus.Database.Game.Job
+import OpenDofus.Database.Game.Skill
 import qualified OpenDofus.Database.SWF.Reader as SWF
-import           OpenDofus.Prelude
+import OpenDofus.Prelude
 
 loadSkills :: FilePath -> IO [(Skill, V.Vector SkillCraft)]
 loadSkills fp = SWF.loadData fp $ \obj -> do
   let (Object sk) = fromMaybe (error "SK") $ H.lookup "SK" obj
-  pure $ H.elems $ H.mapWithKey
-    (\k v ->
-      let i = (fst <$> fromRight (error "Invalid k") $ T.decimal k)
-      in  getSkill i v
-    )
-    sk
+  pure $
+    H.elems $
+      H.mapWithKey
+        ( \k v ->
+            let i = (fst <$> fromRight (error "Invalid k") $ T.decimal k)
+             in getSkill i v
+        )
+        sk
 
-getSkill :: Int -> Value -> (Skill, V.Vector SkillCraft)
+getSkill :: Word32 -> Value -> (Skill, V.Vector SkillCraft)
 getSkill skid (Object b) =
   let int i = SWF.unsafeInt i $ fromMaybe (error i) $ H.lookup (T.pack i) b
       str i = SWF.unsafeString i $ fromMaybe (error i) $ H.lookup (T.pack i) b
       getCraft iid = SkillCraft (SkillPK $ SkillId skid) (ItemPK $ ItemId iid)
-  in  ( Skill
-        (SkillId skid)
-        (str "d")
-        (JobPK $ JobId $ int "j")
-        (InteractiveObjectPK $ InteractiveObjectId $ int "io")
-        (ItemPK $ ItemId . SWF.unsafeInt "i" <$> H.lookup (T.pack "i") b)
-        (SWF.unsafeString "c" <$> H.lookup (T.pack "c") b)
-      , getCraft . SWF.unsafeInt "cl" <$> SWF.unsafeArray
-        "cl"
-        (fromMaybe (Array mempty) $ H.lookup "cl" b)
+   in ( Skill
+          (SkillId skid)
+          (str "d")
+          (JobPK $ JobId $ int "j")
+          (InteractiveObjectPK $ InteractiveObjectId $ int "io")
+          (ItemPK $ ItemId . SWF.unsafeInt "i" <$> H.lookup (T.pack "i") b)
+          (SWF.unsafeString "c" <$> H.lookup (T.pack "c") b),
+        getCraft . SWF.unsafeInt "cl"
+          <$> SWF.unsafeArray
+            "cl"
+            (fromMaybe (Array mempty) $ H.lookup "cl" b)
       )
 getSkill _ _ = error "impossible"

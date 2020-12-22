@@ -42,7 +42,7 @@ import           OpenDofus.Prelude
 
 newtype WorldId =
   WorldId
-    { unWorldId :: Int
+    { unWorldId :: Word32
     }
   deriving newtype ( Show
                    , Eq

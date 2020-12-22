@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f34afb0c67b393bb168311870bc16f2677f0331380e65d85070dd4056ddff2b6
+-- hash: 21d472918752f69cfa038c8039bd756da1bb2d847168aa64aae62fd34131ec41
 
 name:           open-dofus-core
 version:        0.1.0.0
@@ -25,25 +25,29 @@ source-repository head
 
 library
   exposed-modules:
+      OpenDofus.Core.Application
+      OpenDofus.Core.Data.Constructible
+      OpenDofus.Core.Game.Constant
+      OpenDofus.Core.Game.Effect
       OpenDofus.Core.Network.Client
       OpenDofus.Core.Network.Client.Connection
       OpenDofus.Core.Network.Client.Message
-      OpenDofus.Core.Network.Client.State
+      OpenDofus.Core.Network.Client.Types
       OpenDofus.Core.Network.Server
       OpenDofus.Core.Network.Server.State
+      OpenDofus.Core.Network.Server.Types
       OpenDofus.Core.Network.Types
-      OpenDofus.Data.Constructible
-      OpenDofus.Game.Constant
-      OpenDofus.Game.Effect
       OpenDofus.Prelude
   other-modules:
       Paths_open_dofus_core
   hs-source-dirs:
       src
   default-extensions: NoImplicitPrelude
-  ghc-options: -Wall -Werror
+  ghc-options: -Wall -threaded -fno-full-laziness -ffun-to-thunk -funbox-strict-fields -feager-blackholing -fspecialise-aggressively -fstatic-argument-transformation -O2
   build-depends:
-      aeson
+      Z-Data
+    , Z-IO
+    , aeson
     , aeson-extra
     , aeson-pretty
     , asil
@@ -53,28 +57,23 @@ library
     , beam-migrate
     , beam-postgres
     , binary
-    , byteslice
     , bytestring
     , clock
     , containers
-    , dhall
     , directory
+    , dlist
+    , exceptions
     , filepath
-    , ip
     , lens
-    , linear
     , mtl
+    , network
     , path
     , postgresql-simple
-    , pqueue
-    , primitive
-    , primitive-addr
-    , primitive-unlifted
     , rio
-    , rio-prettyprint
     , scientific
-    , sockets
     , stm
+    , stm-containers
+    , streamly
     , text
     , time
     , unordered-containers

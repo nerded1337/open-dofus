@@ -17,62 +17,11 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE BangPatterns #-}
-
 module OpenDofus.Core.Network.Client
-  ( module X
-  , receive
-  , parse
+  ( module X,
   )
 where
 
-import           Data.Bytes.Types
-import qualified Data.ByteString.Builder       as BS
-import           Data.Primitive
-import qualified Data.Vector                   as V
-import           GHC.Exts
-
-import           OpenDofus.Core.Network.Client.Connection
-                                               as X
-import           OpenDofus.Core.Network.Client.Message
-                                               as X
-import           OpenDofus.Core.Network.Client.State
-                                               as X
-import           OpenDofus.Prelude
-
-receive :: (HasClientState a, MonadIO m) => a -> MutableBytes RealWorld -> m ()
-receive !x (MutableBytes !rarr !ro !rl) = liftIO $ do
-  let !buffer = x ^. clientState . clientStateBufferSegment
-  (!resize, !barr, !bo, !bl') <- do
-    (MutableBytes !barr !bo !bl) <- readTVarIO buffer
-    pure (bl < rl, barr, bo, rl)
-  !barr' <- if resize then resizeMutableByteArray barr bl' else pure barr
-  copyMutableByteArray barr' bo rarr ro rl
-  atomically $ writeTVar buffer (MutableBytes barr' bo bl')
-
-parse :: (HasClientState a, MonadIO m) => a -> m (V.Vector ClientMessage)
-parse !x = go mempty mempty 0
-  =<< readTVarIO (x ^. clientState . clientStateBufferSegment)
- where
-  go
-    :: MonadIO m
-    => BS.Builder
-    -> V.Vector ClientMessage
-    -> Int
-    -> MutableBytes RealWorld
-    -> m (V.Vector ClientMessage)
-  go !b !v !i buff@(MutableBytes !arr !o !l)
-    | i < l = liftIO $ do
-      !value <- readByteArray arr (o + i)
-      case (value, i) of
-        (0, 0) -> pure v
-        (0, _) -> do
-          moveByteArray arr o arr (o + i + 1) (l - i - 1)
-          let !newBuffer = MutableBytes arr o (l - i)
-          atomically $ writeTVar
-            (x ^. clientState . clientStateBufferSegment)
-            newBuffer
-          go mempty (V.snoc v $ ClientSent $ BS.toLazyByteString b) 0 newBuffer
-        (10, _) -> go b v (i + 1) buff
-        _       -> go (b <> BS.word8 value) v (i + 1) buff
-    | otherwise = pure v
+import OpenDofus.Core.Network.Client.Connection as X
+import OpenDofus.Core.Network.Client.Message as X
+import OpenDofus.Core.Network.Client.Types as X

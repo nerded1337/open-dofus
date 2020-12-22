@@ -1,4 +1,11 @@
--- Timer.hs ---
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE DataKinds #-}
+
+-- Time.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
 
@@ -17,7 +24,28 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-module OpenDofus.Game.Timer
-  ()
+module OpenDofus.Game.Time
+  ( module T,
+    GameTime,
+    gameCurrentTime,
+    gameDelay
+  )
 where
 
+import OpenDofus.Prelude
+import Time as T
+import qualified Chronos as C
+
+type GameTime unit = Time unit
+
+gameCurrentTime
+  :: forall (unit :: Rat) m. (KnownDivRat Nanosecond unit, MonadIO m)
+  => m (GameTime unit)
+gameCurrentTime =
+  toUnit . ns . fromIntegral . C.getTime <$> liftIO C.now
+
+gameDelay
+  :: (KnownDivRat unit Microsecond, MonadIO m)
+  => GameTime unit
+  -> m ()
+gameDelay = T.threadDelay

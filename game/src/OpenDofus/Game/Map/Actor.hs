@@ -1,4 +1,14 @@
--- Object.hs ---
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeApplications #-}
+
+-- Actor.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
 
@@ -17,59 +27,59 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RankNTypes                 #-}
-{-# LANGUAGE TypeApplications           #-}
-
 module OpenDofus.Game.Map.Actor
-  ( module X
-  , GameActor(..)
-  , loadPlayerCharacter
+  ( module X,
+    GameActor (..),
+    loadPlayerCharacter,
   )
 where
 
-import           OpenDofus.Database
-import           OpenDofus.Game.Map.Actor.PlayerCharacter
-                                               as X
-import           OpenDofus.Game.Map.Actor.Types
-                                               as X
-import           OpenDofus.Prelude
+import OpenDofus.Database
+import OpenDofus.Game.Map.Actor.PlayerCharacter as X
+import OpenDofus.Game.Map.Actor.Restriction as X
+import OpenDofus.Game.Map.Actor.Types as X
+import OpenDofus.Prelude
 
-data GameActor a =
-  GameActorPC (PlayerCharacter a)
-  deriving (Show)
+newtype GameActor
+  = GameActorPC PlayerCharacter
+  deriving newtype (Show)
 
-instance HasActorId (GameActor a) where
+instance HasActorId GameActor where
   actorId (GameActorPC pc) = pc ^. to actorId
 
-instance HasPosition (GameActor a) where
-  position (GameActorPC pc) = pc ^. to position
+instance HasActorLocation GameActor where
+  actorLocation f (GameActorPC pc) =
+    GameActorPC <$> actorLocation f pc
 
-instance HasDirection (GameActor a) where
-  direction (GameActorPC pc) = pc ^. to direction
+instance HasActorDirection GameActor where
+  actorDirection f (GameActorPC pc) =
+    GameActorPC <$> actorDirection f pc
 
-instance HasController (GameActor a) a where
-  controller (GameActorPC pc) = pc ^. to controller
-
-loadPlayerCharacter
-  :: (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m)
-  => controller
-  -> CharacterId
-  -> m (Maybe (PlayerCharacter controller))
-loadPlayerCharacter gc cid = do
+loadPlayerCharacter ::
+  (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m) =>
+  CharacterId ->
+  m (Maybe PlayerCharacter)
+loadPlayerCharacter cid = do
   r <- runSerializable @GameDbConn query
-  pure $ build <$> r <*> pure SouthEast <*> pure defaultRestrictions <*> pure gc
- where
-  query = GameQuery $ runSelectReturningOne $ select $ do
-    c  <- all_ (gameDb ^. character)
-    cp <- oneToOne_ (gameDb ^. characterPosition)
-                    _characterPositionCharacterId
-                    c
-    cl <- oneToOne_ (gameDb ^. characterLook) _characterLookCharacterId c
-    guard_ (c ^. characterId ==. val_ cid)
-    pure (c, cp, cl)
-  build (c, cp, cl) = PlayerCharacter c cp cl
+  pure $ build <$> r <*> pure SouthEast <*> pure defaultRestrictions
+  where
+    query = GameQuery $
+      runSelectReturningOne $
+        select $ do
+          c <- all_ (gameDb ^. character)
+          cp <-
+            oneToOne_
+              (gameDb ^. characterPosition)
+              _characterPositionCharacterId
+              c
+          cl <- oneToOne_ (gameDb ^. characterLook) _characterLookCharacterId c
+          guard_ (c ^. characterId ==. val_ cid)
+          pure (c, cp, cl)
+    build (c, cp, cl) =
+      PlayerCharacter
+        c
+        ( ActorLocation
+            (cp ^. characterPositionMapId)
+            (cp ^. characterPositionCellId)
+        )
+        cl

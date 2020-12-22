@@ -1,6 +1,8 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- Message.hs ---
 
--- Copyright (C) 2019 Nerd Ed
+-- Copyright (C) 2020 Nerd Ed
 
 -- Author: Nerd Ed <nerded.nerded@gmail.com>
 
@@ -17,32 +19,23 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE TemplateHaskell #-}
-
 module OpenDofus.Core.Network.Client.Message
-  ( HasClientMessage(..)
-  , ClientMessage(..)
-  , ToNetwork(..)
-  , FoldNetwork(..)
+  ( HasClientMessage (..),
+    ClientMessage (..),
+    ClientPacket
   )
 where
 
-import qualified Data.ByteString.Lazy          as BS
-import qualified Data.ByteString.Lazy.Builder  as BS
+import qualified Data.ByteString.Char8 as BS
+import OpenDofus.Prelude
 
-import           OpenDofus.Prelude
+type ClientPacket = BS.ByteString
 
-data ClientMessage = ClientConnected
-    | ClientDisconnected
-    | ClientSent !BS.ByteString
-    deriving (Show, Eq)
+data ClientMessage
+  = ClientConnected
+  | ClientDisconnected
+  | ClientSent !ClientPacket
+  deriving (Show, Eq)
 
 makeClassy ''ClientMessage
 
-newtype FoldNetwork f a = FoldNetwork { unFoldNetwork :: f a }
-
-instance (Foldable f, ToNetwork a) => ToNetwork (FoldNetwork f a) where
-  toNetwork = foldMap toNetwork . unFoldNetwork
-
-class ToNetwork a where
-  toNetwork :: a -> BS.Builder

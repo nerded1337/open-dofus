@@ -1,5 +1,6 @@
+{-# LANGUAGE OverloadedStrings #-}
 
--- GameMapFrame.hs ---
+-- Constant.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
 
@@ -18,25 +19,20 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-module OpenDofus.Game.Frame.Map
-  ( mapHandler
+module OpenDofus.Core.Game.Constant
+  ( ProtocolVersion,
+    gameProtocolVersion,
   )
 where
 
-import           OpenDofus.Core.Network.Server
-import           OpenDofus.Data.Constructible
-import           OpenDofus.Game.Map
-import           OpenDofus.Game.Server
-import           OpenDofus.Prelude
+import OpenDofus.Prelude
 
-mapHandler
-  :: PlayerCharacter GameClientController
-  -> GameMapController
-  -> GameClientHandler
-mapHandler pc mapCtl = MessageHandlerCont $ go =<< asks
-  (view handlerInputMessage)
- where
-  go (ClientSent ('G' :- 'I' :- _)) = do
-    raiseMapEvent mapCtl $ MapEventDispatchInformations $ GameActorPC pc
-    pure $ mapHandler pc mapCtl
-  go _ = pure $ mapHandler pc mapCtl
+newtype ProtocolVersion
+  = ProtocolVersion (Int, Int, Int)
+
+instance Show ProtocolVersion where
+  show (ProtocolVersion (major, minor, revision)) =
+    show major <> "." <> show minor <> "." <> show revision
+
+gameProtocolVersion :: ProtocolVersion
+gameProtocolVersion = ProtocolVersion (1, 34, 1)

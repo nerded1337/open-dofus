@@ -17,6 +17,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+{-# LANGUAGE DerivingStrategies #-}
+
 module OpenDofus.Game.Map.Event
   ( MapEvent(..)
   )
@@ -25,8 +27,8 @@ where
 import           OpenDofus.Game.Map.Actor
 import           OpenDofus.Prelude
 
-data MapEvent a
-  = MapEventActorSpawn (GameActor a)
-  | MapEventActorDespawn (GameActor a)
-  | MapEventDispatchInformations (GameActor a)
-  deriving (Show)
+data MapEvent
+  = MapEventActorSpawn {-# UNPACK #-} !GameActor
+  | MapEventActorDespawn {-# UNPACK #-} !GameActor
+  | MapEventDispatchInformations {-# UNPACK #-} !GameActor
+  deriving stock (Show)

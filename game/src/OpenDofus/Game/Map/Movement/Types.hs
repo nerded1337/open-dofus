@@ -1,3 +1,10 @@
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 -- Types.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
@@ -18,5 +25,27 @@
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 module OpenDofus.Game.Map.Movement.Types
-  ()
+  ( Segment (..),
+    HasSegment (..),
+    MovementPath (..),
+    HasMovementPath (..),
+  )
 where
+
+import qualified Data.Vector as V
+import OpenDofus.Prelude
+
+data Segment a = Segment
+  { _segmentBegin :: !a,
+    _segmentEnd :: !a
+  }
+  deriving stock (Functor, Foldable, Traversable)
+
+makeClassy ''Segment
+
+newtype MovementPath a = MovementPath
+  { unMovementPath :: V.Vector (Segment a)
+  }
+  deriving stock (Functor, Foldable, Traversable)
+
+makeClassy ''MovementPath

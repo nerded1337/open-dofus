@@ -14,32 +14,28 @@ description:
 
 dependencies:
 - base >= 4.7 && < 5
-- sockets
-- primitive
-- primitive-unlifted
-- byteslice
 - text
 - bytestring
-- ip
+- network
+- streamly
 - stm
+- stm-containers
+- MonadRandom
 - containers
 - vector
 - directory
 - lens
-- linear
-- pqueue
-- MonadRandom
 - aeson
-- clock
 - mtl
 - uuid
-- open-dofus-core
-- open-dofus-db
+- rio
 - beam-core
 - beam-postgres
 - beam-migrate
 - postgresql-simple
-- rio
+- open-dofus-core
+- open-dofus-db
+- Z-IO
 
 default-extensions:
   - NoImplicitPrelude 
@@ -50,13 +46,13 @@ executables:
     main: Main.hs
     ghc-options:
       - -Wall
-      - -Werror
       - -threaded
-      - -rtsopts
-      # - -O2
-      # - -fspecialise-aggressively
-      # - -fexpose-all-unfoldings
+      - -fno-full-laziness
+      - -ffun-to-thunk
+      - -funbox-strict-fields
       - -feager-blackholing
-      # - -fstatic-argument-transformation
-      # - -fllvm
-      - "\"-with-rtsopts=-N -T -H128m -K64m\""
+      - -fspecialise-aggressively
+      - -fstatic-argument-transformation
+      - -O2
+      - -rtsopts
+      - "\"-with-rtsopts=-N -H64m -A64m -I0 -qn8 -c -S\""

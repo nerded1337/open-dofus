@@ -1,4 +1,4 @@
--- Constant.hs ---
+-- Movement.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
 
@@ -17,22 +17,4 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE OverloadedStrings #-}
-
-module OpenDofus.Game.Constant
-  ( ProtocolVersion
-  , gameProtocolVersion
-  )
-where
-
-import           OpenDofus.Prelude
-
-newtype ProtocolVersion =
-  ProtocolVersion (Int, Int, Int)
-
-instance Show ProtocolVersion where
-  show (ProtocolVersion (major, minor, revision)) =
-    show major <> "." <> show minor <> "." <> show revision
-
-gameProtocolVersion :: ProtocolVersion
-gameProtocolVersion = ProtocolVersion (1, 33, 1)
+module OpenDofus.Game.Map.Movement where

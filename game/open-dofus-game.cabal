@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 317b38a59cc9545e64a9cd0faeae99d1d447ca831a3dce5f92c0b033cc09cc79
+-- hash: 524b7d2ca83384409d0effde5aece1f7945fa0bf5a96ca7e3e24f82e157982f7
 
 name:           open-dofus-game
 version:        0.1.0.0
@@ -27,13 +27,6 @@ executable open-dofus-game
   main-is: Main.hs
   other-modules:
       OpenDofus.Game.Character
-      OpenDofus.Game.Frame.Authentication
-      OpenDofus.Game.Frame.CharacterLogout
-      OpenDofus.Game.Frame.CharacterSelection
-      OpenDofus.Game.Frame.GameCreation
-      OpenDofus.Game.Frame.HelloGame
-      OpenDofus.Game.Frame.Logout
-      OpenDofus.Game.Frame.Map
       OpenDofus.Game.Map
       OpenDofus.Game.Map.Actor
       OpenDofus.Game.Map.Actor.PlayerCharacter
@@ -45,22 +38,21 @@ executable open-dofus-game
       OpenDofus.Game.Map.Event
       OpenDofus.Game.Map.Interactive
       OpenDofus.Game.Map.Interactive.Types
+      OpenDofus.Game.Map.Movement
       OpenDofus.Game.Map.Movement.Types
       OpenDofus.Game.Map.Parser
       OpenDofus.Game.Map.Types
       OpenDofus.Game.Network
       OpenDofus.Game.Network.Message
       OpenDofus.Game.Server
-      OpenDofus.Game.Timer
-      OpenDofus.Game.Types
+      OpenDofus.Game.Time
       Paths_open_dofus_game
   hs-source-dirs:
       src
   default-extensions: NoImplicitPrelude
-  ghc-options: -Wall -Werror -threaded -rtsopts -feager-blackholing "-with-rtsopts=-N -T -H256m -K128m"
+  ghc-options: -Wall -threaded -fno-full-laziness -ffun-to-thunk -funbox-strict-fields -feager-blackholing -fspecialise-aggressively -fstatic-argument-transformation -O2 -rtsopts "-with-rtsopts=-N -H1024m -A128m -AL64m -G3 -I0 -qn8 -c -S"
   build-depends:
-      MonadRandom
-    , aeson
+      aeson
     , attoparsec
     , base >=4.7 && <5
     , base64-bytestring
@@ -68,25 +60,22 @@ executable open-dofus-game
     , beam-migrate
     , beam-postgres
     , bitwise-enum
-    , byteslice
     , bytestring
-    , clock
+    , chronos
     , containers
     , directory
-    , ip
+    , hashtables
     , lens
     , linear
     , mtl
+    , o-clock
     , open-dofus-core
     , open-dofus-db
     , postgresql-simple
-    , pqueue
-    , primitive
-    , primitive-unlifted
-    , recursion-schemes
     , rio
-    , sockets
     , stm
+    , stm-containers
+    , streamly
     , text
     , unagi-chan
     , unordered-containers

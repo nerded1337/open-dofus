@@ -14,13 +14,9 @@ description:
 
 dependencies:
 - base >= 4.7 && < 5
-- primitive
-- primitive-unlifted
-- byteslice
 - bytestring
 - scientific
 - time
-- ip
 - stm
 - containers
 - unordered-containers
@@ -30,14 +26,12 @@ dependencies:
 - filepath
 - path
 - linear
-- pqueue
 - aeson
 - aeson-extra
 - aeson-pretty
 - clock
 - mtl
 - uuid
-- sockets
 - text
 - beam-core
 - beam-postgres
@@ -48,7 +42,6 @@ dependencies:
 - attoparsec
 - lens
 - rio
-- rio-prettyprint
 - resource-pool
 - natural-transformation
 - open-dofus-core
@@ -60,10 +53,10 @@ library:
   source-dirs: src
   ghc-options:
     - -Wall
-    - -Werror
-    # - -fspecialise-aggressively
-    # - -fexpose-all-unfoldings
-    # - -fstatic-argument-transformation
-    # - -feager-blackholing
-    - -fmax-pmcheck-iterations=5000000
-    # - -fllvm
+    - -fno-full-laziness
+    - -ffun-to-thunk
+    - -funbox-strict-fields
+    - -feager-blackholing
+    - -fspecialise-aggressively
+    - -fstatic-argument-transformation
+    - -O2

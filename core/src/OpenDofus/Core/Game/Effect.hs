@@ -1,6 +1,8 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- Effect.hs ---
 
--- Copyright (C) 2019 Nerd Ed
+-- Copyright (C) 2020 Nerd Ed
 
 -- Author: Nerd Ed <nerded.nerded@gmail.com>
 
@@ -17,38 +19,34 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE TemplateHaskell #-}
-
-module OpenDofus.Game.Effect
-  ( EffectDice(..)
-  , HasEffectDice(..)
-  , EffectInstance(..)
-  , HasEffectInstance(..)
-  , parseEffect
-  , parseDice
+module OpenDofus.Core.Game.Effect
+  ( EffectDice (..),
+    HasEffectDice (..),
+    EffectInstance (..),
+    HasEffectInstance (..),
+    parseEffect,
+    parseDice,
   )
 where
 
-import           Data.Attoparsec.Text
-import           OpenDofus.Prelude
+import Data.Attoparsec.Text
+import OpenDofus.Prelude
 
-data EffectDice =
-  EffectDice
-    { _effectDiceMultiplier :: {-# UNPACK #-}!Int
-    , _effectDiceMaximum    :: {-# UNPACK #-}!Int
-    , _effectDiceConstant   :: {-# UNPACK #-}!Int
-    }
+data EffectDice = EffectDice
+  { _effectDiceMultiplier :: {-# UNPACK #-} !Int32,
+    _effectDiceMaximum :: {-# UNPACK #-} !Int32,
+    _effectDiceConstant :: {-# UNPACK #-} !Int32
+  }
 
 makeClassy ''EffectDice
 
-data EffectInstance =
-  EffectInstance
-    { _effectInstanceId     :: {-# UNPACK #-}!Int
-    , _effectInstanceParam1 :: {-# UNPACK #-}!Int
-    , _effectInstanceParam2 :: {-# UNPACK #-}!Int
-    , _effectInstanceParam3 :: {-# UNPACK #-}!Int
-    , _effectInstanceDice   :: {-# UNPACK #-}!EffectDice
-    }
+data EffectInstance = EffectInstance
+  { _effectInstanceId :: {-# UNPACK #-} !Int32,
+    _effectInstanceParam1 :: {-# UNPACK #-} !Int32,
+    _effectInstanceParam2 :: {-# UNPACK #-} !Int32,
+    _effectInstanceParam3 :: {-# UNPACK #-} !Int32,
+    _effectInstanceDice :: {-# UNPACK #-} !EffectDice
+  }
 
 makeClassy ''EffectInstance
 
@@ -58,7 +56,10 @@ parseDice =
     <$> signed decimal
     <*> (char 'd' *> signed decimal)
     <*> (char '+' *> signed decimal)
+{-# INLINE parseDice #-}
 
 parseEffect :: Parser EffectInstance
 parseEffect = EffectInstance <$> hex <*> hex <*> hex <*> hex <*> parseDice
-  where hex = char '#' *> hexadecimal
+  where
+    hex = char '#' *> hexadecimal
+{-# INLINE parseEffect #-}

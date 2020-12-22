@@ -18,9 +18,8 @@
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 module OpenDofus.Game.Network
-  ( module X
+  ( module X,
   )
 where
 
-import           OpenDofus.Game.Network.Message
-                                               as X
+import OpenDofus.Game.Network.Message as X

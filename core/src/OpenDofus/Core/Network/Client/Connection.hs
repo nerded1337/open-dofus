@@ -1,6 +1,10 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 -- Connection.hs ---
 
--- Copyright (C) 2019 Nerd Ed
+-- Copyright (C) 2020 Nerd Ed
 
 -- Author: Nerd Ed <nerded.nerded@gmail.com>
 
@@ -17,26 +21,28 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RankNTypes                 #-}
-{-# LANGUAGE TemplateHaskell            #-}
-
 module OpenDofus.Core.Network.Client.Connection
-  ( HasClientConnection(..)
-  , ClientConnection(..)
-  ) where
+  ( HasClientConnection (..),
+    ClientConnection (..),
+  )
+where
 
-import qualified Socket.Stream.IPv4 as SI (Connection, Peer)
+import Network.Socket (SockAddr, Socket)
+import OpenDofus.Core.Network.Types (HasNetworkId (..), NetworkId)
+import OpenDofus.Prelude
 
-import           OpenDofus.Prelude
-
-data ClientConnection =
-  ClientConnection
-    { _clientConnectionSocket  :: {-# UNPACK #-}!SI.Connection
-    , _clientConnectionAddress :: {-# UNPACK #-}!SI.Peer
-    }
+data ClientConnection = ClientConnection
+  { _clientConnectionSocket :: {-# UNPACK #-} !Socket,
+    _clientConnectionNetworkId :: {-# UNPACK #-} !NetworkId,
+    _clientConnectionIp :: !SockAddr
+  }
 
 makeClassy ''ClientConnection
 
+instance HasNetworkId ClientConnection where
+  networkId = clientConnectionNetworkId
+  {-# INLINE networkId #-}
+
 instance Show ClientConnection where
-  show (ClientConnection _ addr) = "Connection { address = '" <> show addr <> "' }"
+  show conn =
+    "Connection { networkId = \"" <> show (conn ^. networkId) <> "\", ip = \"" <> show (conn ^. clientConnectionIp) <> "\" }"

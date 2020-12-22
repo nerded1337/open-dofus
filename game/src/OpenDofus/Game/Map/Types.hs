@@ -1,3 +1,14 @@
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
+
 -- Types.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
@@ -17,71 +28,70 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE DeriveAnyClass         #-}
-{-# LANGUAGE DeriveFoldable         #-}
-{-# LANGUAGE DeriveFunctor          #-}
-{-# LANGUAGE DeriveTraversable      #-}
-{-# LANGUAGE DerivingStrategies     #-}
-{-# LANGUAGE FlexibleInstances      #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE OverloadedStrings      #-}
-{-# LANGUAGE TemplateHaskell        #-}
-{-# LANGUAGE TypeApplications       #-}
-
 module OpenDofus.Game.Map.Types
-  ( module X
-  , MapInstance
-  , MapInstanceT(..)
-  , HasMapInstanceT(..)
-  , MapController(..)
-  , HasMapController(..)
+  ( MapInstance,
+    MapInstanceT (..),
+    HasMapInstanceT (..),
+    HashTable,
+    MapEventArgs (..),
+    HasMapEventArgs (..),
+    MapEventReader,
+    MapEventDispatch (..),
+    HasMapEventDispatch (..),
+    MapController,
+    MapControllerT (..),
+    HasMapControllerT (..),
   )
 where
 
-import           Control.Concurrent.Chan.Unagi.NoBlocking
-                                               as U
-import           Data.HashMap.Strict           as HM
-import           OpenDofus.Database
-import           OpenDofus.Game.Map.Actor      as X
-import           OpenDofus.Game.Map.Cell       as X
-import           OpenDofus.Game.Map.Event      as X
-import           OpenDofus.Game.Map.Interactive
-                                               as X
-import           OpenDofus.Prelude
+import Data.HashMap.Strict as HM
+import qualified Data.HashTable.IO as H
+import OpenDofus.Database
+import OpenDofus.Game.Map.Actor
+import OpenDofus.Game.Map.Cell
+import OpenDofus.Game.Map.Event
+import OpenDofus.Game.Map.Interactive
+import OpenDofus.Game.Network.Message
+import OpenDofus.Prelude
 
-type MapInstance a
-  = MapInstanceT
-      (Maybe InteractiveObjectInstance)
-      (IORef (HM.HashMap ActorId (GameActor a)))
+type HashTable k v = H.CuckooHashTable k v
 
-data MapInstanceT a b = MapInstance
-    { _mapInstanceTemplate :: {-# UNPACK #-} !Map
-    , _mapInstanceCells    :: !(HM.HashMap CellId (CellT a))
-    , _mapInstanceActors   :: !b
-    }
-    deriving stock (Show, Functor, Foldable, Traversable)
+type MapInstance = MapInstanceT (Maybe InteractiveObjectInstance)
+
+data MapInstanceT a = MapInstance
+  { _mapInstanceTemplate :: {-# UNPACK #-} !Map,
+    _mapInstanceCells :: !(HM.HashMap CellId (CellT a))
+  }
+  deriving stock (Functor, Foldable, Traversable)
 
 makeClassy ''MapInstanceT
 
-instance Bifunctor MapInstanceT where
-  bimap f g m = m { _mapInstanceCells  = fmap f <$> _mapInstanceCells m
-                  , _mapInstanceActors = g $ _mapInstanceActors m
-                  }
+type MapController = MapControllerT IO (Maybe InteractiveObjectInstance)
 
-instance Bifoldable MapInstanceT where
-  bifoldMap f g m =
-    foldMap (f . view cellInteractiveObjects) (m ^. mapInstanceCells)
-      <> g (m ^. mapInstanceActors)
+data MapControllerT m a = MapController
+  { _mapControllerInstance :: {-# UNPACK #-} !(MapInstanceT a),
+    _mapControllerActors :: {-# UNPACK #-} !(HashTable ActorId GameActor),
+    _mapControllerDispatch :: !(ActorId -> [GameMessage] -> m ())
+  }
+  deriving stock (Functor, Foldable, Traversable)
 
-instance Bitraversable MapInstanceT where
-  bitraverse f g (MapInstance x y z) =
-    MapInstance x <$> traverse (traverse f) y <*> g z
+makeClassy ''MapControllerT
 
-data MapController a b = MapController
-    { _mapControllerMap      :: !(MapInstance a)
-    , _mapControllerEventIn  :: {-# UNPACK #-} !(InChan b)
-    , _mapControllerEventOut :: {-# UNPACK #-} !(OutChan b)
-    }
+type MapEventReader m = MonadReader MapEventArgs m
 
-makeClassy ''MapController
+data MapEventArgs = MapEventArgs
+  { _mapEventArgsEvent :: !MapEvent,
+    _mapEventArgsCtl :: !MapController
+  }
 
+makeClassy ''MapEventArgs
+
+instance Show MapEventArgs where
+  show = show . view mapEventArgsEvent
+
+data MapEventDispatch = MapEventDispatch
+  { _mapEventDispatchEvent :: !MapEvent,
+    _mapEventDispatchMapId :: {-# UNPACK #-} !MapId
+  }
+
+makeClassy ''MapEventDispatch

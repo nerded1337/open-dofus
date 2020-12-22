@@ -1,6 +1,15 @@
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+
 -- State.hs ---
 
--- Copyright (C) 2019 Nerd Ed
+-- Copyright (C) 2020 Nerd Ed
 
 -- Author: Nerd Ed <nerded.nerded@gmail.com>
 
@@ -17,51 +26,22 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE DerivingVia                #-}
-{-# LANGUAGE FunctionalDependencies     #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TypeFamilies               #-}
-
 module OpenDofus.Core.Network.Server.State
-  ( HasServerState(..)
-  , HasClientType(..)
-  , ServerState(..)
+  ( HasServerState (..),
+    ServerState (..),
   )
 where
 
-import           Data.Kind
-import qualified Data.Map.Strict               as M
-import           Data.Primitive                 ( MutableByteArray )
-import qualified Data.Vector.Unboxed           as VU
-import           GHC.Exts
+import Network.Socket (PortNumber)
+import OpenDofus.Core.Network.Client (ClientConnection)
+import OpenDofus.Core.Network.Types (NetworkId)
+import OpenDofus.Prelude (makeClassy)
+import qualified StmContainers.Map as M
 
-import           OpenDofus.Core.Network.Client
-import           OpenDofus.Core.Network.Types
-import           OpenDofus.Prelude
-
-class ( HasNetworkId (ClientTypeOf a)
-      , HasClientConnection (ClientTypeOf a)
-      , HasClientState (ClientTypeOf a)
-      ) =>
-      HasClientType a
-  where
-  type ClientTypeOf a :: Type
-
-data ServerState a = ServerState
-    { _port                 :: {-# UNPACK #-} !Word16
-    , _maxClient            :: {-# UNPACK #-} !MaxClient
-    , _receiveBufferSize    :: {-# UNPACK #-} !ReceiveBufferSize
-    , _makeClient           :: !(ClientCtor a)
-    , _clients              :: {-# UNPACK #-} !(TVar (M.Map NetworkId a))
-    , _clientSlots          :: {-# UNPACK #-} !(TVar (VU.Vector Int))
-    , _receiveBufferSegment :: {-# UNPACK #-} !(MutableByteArray RealWorld)
-    }
+data ServerState m a = ServerState
+  { _serverStatePort :: {-# UNPACK #-} !PortNumber,
+    _serverStateMakeClient :: !(ClientConnection -> m a),
+    _serverStateClients :: {-# UNPACK #-} !(M.Map NetworkId a)
+  }
 
 makeClassy ''ServerState
-
-instance HasServerState a b => HasServerState (HandlerInput a b) b where
-  serverState = handlerInputServer . serverState

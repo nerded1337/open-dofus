@@ -1,6 +1,12 @@
--- Text.hs ---
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 
--- Copyright (C) 2019 Nerd Ed
+-- Constructible.hs ---
+
+-- Copyright (C) 2020 Nerd Ed
 
 -- Author: Nerd Ed <nerded.nerded@gmail.com>
 
@@ -17,31 +23,28 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE BangPatterns          #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PatternSynonyms       #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE ViewPatterns          #-}
+module OpenDofus.Core.Data.Constructible
+  ( Constructible (..),
+    pattern (:-),
+    intersperseC,
+  )
+where
 
-module OpenDofus.Data.Constructible
-  ( Constructible(..)
-  , pattern (:-)
-  , intersperseC
-  ) where
-
-import qualified Data.ByteString.Char8      as BS
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.Sequence              as S
-import qualified Data.Vector                as V
-import qualified Data.Vector.Unboxed        as VU
-import           RIO
-import qualified RIO.Text                   as T
+import qualified Data.Sequence as S
+import qualified Data.Text as T
+import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed as VU
+import OpenDofus.Prelude hiding (cons, uncons)
 
 infixr 5 :-
 
 pattern (:-) :: Constructible a => Elem a -> a -> a
-pattern x :- xs <- (uncons -> Just (x, xs))
-  where x :- xs = cons x xs
+pattern x :- xs <-
+  (uncons -> Just (x, xs))
+  where
+    x :- xs = cons x xs
 
 class Constructible a where
   type Elem a :: *
@@ -51,54 +54,69 @@ class Constructible a where
 instance Constructible [a] where
   type Elem [a] = a
   cons = (:)
-  uncons (x:xs) = Just (x, xs)
-  uncons []     = Nothing
+  {-# INLINE cons #-}
+  uncons (x : xs) = Just (x, xs)
+  uncons [] = Nothing
+  {-# INLINE uncons #-}
 
 instance Constructible T.Text where
   type Elem T.Text = Char
   cons = T.cons
+  {-# INLINE cons #-}
   uncons = T.uncons
+  {-# INLINE uncons #-}
 
 instance Constructible (V.Vector a) where
   type Elem (V.Vector a) = a
   cons = V.cons
+  {-# INLINE cons #-}
   uncons v
-    | len == 0  = Nothing
+    | len == 0 = Nothing
     | otherwise = Just (v V.! 0, V.tail v)
     where
       len :: Int
-      !len = V.length v
+      len = V.length v
+  {-# INLINE uncons #-}
 
 instance VU.Unbox a => Constructible (VU.Vector a) where
   type Elem (VU.Vector a) = a
   cons = VU.cons
-  uncons !v
-    | len == 0  = Nothing
+  {-# INLINE cons #-}
+  uncons v
+    | len == 0 = Nothing
     | otherwise = Just (v VU.! 0, VU.tail v)
     where
       len :: Int
-      !len = VU.length v
+      len = VU.length v
+  {-# INLINE uncons #-}
 
 instance Constructible (S.Seq a) where
   type Elem (S.Seq a) = a
   cons = (S.<|)
-  uncons !s = case S.viewl s of
+  {-# INLINE cons #-}
+  uncons s = case S.viewl s of
     (x S.:< xs) -> Just (x, xs)
-    _           -> Nothing
+    _ -> Nothing
+  {-# INLINE uncons #-}
 
 instance Constructible BS.ByteString where
   type Elem BS.ByteString = Char
   cons = BS.cons
+  {-# INLINE cons #-}
   uncons = BS.uncons
+  {-# INLINE uncons #-}
 
 instance Constructible LBS.ByteString where
   type Elem LBS.ByteString = Char
   cons = LBS.cons
+  {-# INLINE cons #-}
   uncons = LBS.uncons
+  {-# INLINE uncons #-}
 
+{-# INLINE intersperseC #-}
 intersperseC :: Constructible a => Elem a -> a -> a
-intersperseC !a (x :- xs) = x :- go xs
+intersperseC a (x :- xs) = x :- go xs
   where
-    go (x' :- xs') = a :- (x' :- go xs')
-    go !xs'         = xs'
-intersperseC _ xs                = xs
+    go (x' :- xs') = a :- x' :- go xs'
+    go xs' = xs'
+intersperseC _ xs = xs

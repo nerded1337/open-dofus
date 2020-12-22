@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 -- Job.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
@@ -16,8 +18,6 @@
 
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
-
-{-# LANGUAGE OverloadedStrings #-}
 
 module OpenDofus.Database.SWF.Job
   ( loadJobs
@@ -45,7 +45,7 @@ loadJobs fp = SWF.loadData fp $ \obj -> do
     )
     j
 
-getJob :: Int -> Value -> Job
+getJob :: Word32 -> Value -> Job
 getJob ioid (Object b) =
   let int i = SWF.unsafeInt i $ fromMaybe (error i) $ H.lookup (T.pack i) b
       str i = SWF.unsafeString i $ fromMaybe (error i) $ H.lookup (T.pack i) b

@@ -1,3 +1,13 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+
 -- PlayerCharacter.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
@@ -17,61 +27,36 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE DeriveAnyClass         #-}
-{-# LANGUAGE DeriveGeneric          #-}
-{-# LANGUAGE DeriveTraversable      #-}
-{-# LANGUAGE DerivingStrategies     #-}
-{-# LANGUAGE FlexibleInstances      #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE StandaloneDeriving     #-}
-{-# LANGUAGE TemplateHaskell        #-}
-{-# LANGUAGE TypeFamilies           #-}
-
 module OpenDofus.Game.Map.Actor.PlayerCharacter
-  ( PlayerCharacter(..)
-  , HasPlayerCharacter(..)
+  ( PlayerCharacter (..),
+    HasPlayerCharacter (..),
   )
 where
 
-import           OpenDofus.Database
-import           OpenDofus.Game.Map.Actor.Types
-import           OpenDofus.Prelude
+import OpenDofus.Database
+import OpenDofus.Game.Map.Actor.Restriction
+import OpenDofus.Game.Map.Actor.Types
+import OpenDofus.Prelude
 
-data PlayerCharacter a = PlayerCharacter
-    { _playerCharacterBaseCharacter     :: {-# UNPACK #-} !Character
-    , _playerCharacterCharacterPosition :: {-# UNPACK #-} !CharacterPosition
-    , _playerCharacterCharacterLook     :: {-# UNPACK #-} !CharacterLook
-    , _playerCharacterDirection         :: !Direction
-    , _playerCharacterRestrictions      :: {-# UNPACK #-} !ActorRestrictionSet
-    , _playerCharacterController        :: !a
-    }
-    deriving stock (Generic, Functor, Foldable, Traversable)
+data PlayerCharacter = PlayerCharacter
+  { _playerCharacterBaseCharacter :: {-# UNPACK #-} !Character,
+    _playerCharacterCharacterLocation :: {-# UNPACK #-} !ActorLocation,
+    _playerCharacterCharacterLook :: {-# UNPACK #-} !CharacterLook,
+    _playerCharacterCharacterDirection :: !ActorDirection,
+    _playerCharacterRestrictions :: {-# UNPACK #-} !ActorRestrictionSet
+  }
+  deriving stock (Show, Eq)
 
 makeClassy ''PlayerCharacter
 
-instance Show (PlayerCharacter a) where
-  show (PlayerCharacter c cp cl _ r _) =
-    "PlayerCharacter {"
-      <> show c
-      <> ", "
-      <> show cp
-      <> ", "
-      <> show cl
-      <> ", "
-      <> show r
-      <> "}"
+instance HasActorId PlayerCharacter where
+  actorId =
+    ActorId
+      . unCharacterId
+      . view (playerCharacterBaseCharacter . characterId)
 
-instance HasActorId (PlayerCharacter a) where
-  actorId pc =
-    ActorId $ unCharacterId $ pc ^. playerCharacterBaseCharacter . characterId
+instance HasActorLocation PlayerCharacter where
+  actorLocation = playerCharacterCharacterLocation
 
-instance HasPosition (PlayerCharacter a) where
-  position pc =
-    (pcPos ^. characterPositionMapId, pcPos ^. characterPositionCellId)
-    where pcPos = pc ^. playerCharacterCharacterPosition
-
-instance HasDirection (PlayerCharacter a) where
-  direction = view playerCharacterDirection
-
-instance HasController (PlayerCharacter a) a where
-  controller = view playerCharacterController
+instance HasActorDirection PlayerCharacter where
+  actorDirection = playerCharacterCharacterDirection

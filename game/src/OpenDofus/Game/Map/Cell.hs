@@ -18,10 +18,9 @@
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 module OpenDofus.Game.Map.Cell
-  ( module X
+  ( module X,
   )
 where
 
-import           OpenDofus.Game.Map.Cell.Types as X
-import           OpenDofus.Game.Map.Cell.Parser
-                                               as X
+import OpenDofus.Game.Map.Cell.Parser as X
+import OpenDofus.Game.Map.Cell.Types as X

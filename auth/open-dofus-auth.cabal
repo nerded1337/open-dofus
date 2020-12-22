@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.32.0.
+-- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6fdab854e44a7486a87fa979d7db83eebdd50a29000cc4f726407b02c80b5ff3
+-- hash: d7ef4f258b7f32730d2b30d84e176d2bbffac37c195f364279d2f71116d32265
 
 name:           open-dofus-auth
 version:        0.1.0.0
@@ -26,43 +26,34 @@ source-repository head
 executable open-dofus-auth
   main-is: Main.hs
   other-modules:
-      OpenDofus.Auth.Frame.Authentication
-      OpenDofus.Auth.Frame.HelloConnect
-      OpenDofus.Auth.Frame.Logout
-      OpenDofus.Auth.Frame.Protocol
-      OpenDofus.Auth.Frame.WorldSelection
       OpenDofus.Auth.Network.Message
       OpenDofus.Auth.Server
       Paths_open_dofus_auth
   hs-source-dirs:
       src
   default-extensions: NoImplicitPrelude
-  ghc-options: -Wall -Werror -threaded -rtsopts -feager-blackholing "-with-rtsopts=-N -T -H128m -K64m"
+  ghc-options: -Wall -threaded -fno-full-laziness -ffun-to-thunk -funbox-strict-fields -feager-blackholing -fspecialise-aggressively -fstatic-argument-transformation -O2 -rtsopts "-with-rtsopts=-N -H64m -A64m -I0 -qn8 -c -S"
   build-depends:
       MonadRandom
+    , Z-IO
     , aeson
     , base >=4.7 && <5
     , beam-core
     , beam-migrate
     , beam-postgres
-    , byteslice
     , bytestring
-    , clock
     , containers
     , directory
-    , ip
     , lens
-    , linear
     , mtl
+    , network
     , open-dofus-core
     , open-dofus-db
     , postgresql-simple
-    , pqueue
-    , primitive
-    , primitive-unlifted
     , rio
-    , sockets
     , stm
+    , stm-containers
+    , streamly
     , text
     , uuid
     , vector

@@ -1,4 +1,4 @@
--- Logout.hs ---
+-- Types.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
 
@@ -17,21 +17,20 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeApplications #-}
+module OpenDofus.Core.Network.Client.Types
+  ( FoldNetwork (..),
+    ToNetwork (..),
+  )
+where
 
-module OpenDofus.Game.Frame.Logout where
+import qualified Data.ByteString.Lazy.Builder as LBS
+import OpenDofus.Prelude
 
-import           OpenDofus.Core.Network.Client
-import           OpenDofus.Database
-import           OpenDofus.Game.Server
-import           OpenDofus.Prelude
+class ToNetwork a where
+  toNetwork :: a -> LBS.Builder
 
-logoutHandler :: Account -> GameClientHandler
-logoutHandler acc = MessageHandlerCont $ go =<< asks (view handlerInputMessage)
-  where
-    go ClientDisconnected = do
-      runSerializable @AuthDbConn $
-        setAccountIsOnline (acc ^. accountId) (AccountIsOnline False)
-      pure $ MessageHandlerDisconnect $ pure mempty
-    go _ = pure $ logoutHandler acc
+newtype FoldNetwork f a = FoldNetwork {unFoldNetwork :: f a}
+
+instance (Foldable f, ToNetwork a) => ToNetwork (FoldNetwork f a) where
+  toNetwork = foldMap toNetwork . unFoldNetwork
+  {-# INLINE toNetwork #-}

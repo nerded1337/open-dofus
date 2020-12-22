@@ -1,3 +1,11 @@
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 -- Types.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
@@ -17,61 +25,59 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE RankNTypes                 #-}
-
 module OpenDofus.Game.Map.Actor.Types
-  ( ActorId(..)
-  , Direction(..)
-  , HasActorId(..)
-  , HasPosition(..)
-  , HasDirection(..)
-  , HasController(..)
-  , module X
+  ( ActorId (..),
+    HasActorId (..),
+    ActorLocation (..),
+    HasActorLocation (..),
+    ActorDirection (..),
+    HasActorDirection (..),
   )
 where
 
-import           OpenDofus.Database
-import           OpenDofus.Game.Map.Actor.Restriction
-                                               as X
-import           OpenDofus.Prelude
+import OpenDofus.Database
+import OpenDofus.Prelude
 
-data Direction = East
-    | SouthEast
-    | South
-    | SouthWest
-    | West
-    | NorthWest
-    | North
-    | NorthEast
-    deriving (Show, Eq, Ord, Bounded, Enum)
+data ActorDirection
+  = East
+  | SouthEast
+  | South
+  | SouthWest
+  | West
+  | NorthWest
+  | North
+  | NorthEast
+  deriving stock
+    ( Show,
+      Eq,
+      Ord,
+      Bounded,
+      Enum
+    )
 
-newtype ActorId =
-  ActorId
-    { unActorId :: Word64
-    }
-  deriving newtype ( Show
-                   , Eq
-                   , Ord
-                   , Num
-                   , Real
-                   , Enum
-                   , Integral
-                   , Hashable
-                   )
+makeClassy ''ActorDirection
+
+newtype ActorId = ActorId
+  { unActorId :: Word64
+  }
+  deriving newtype
+    ( Show,
+      Eq,
+      Ord,
+      Num,
+      Real,
+      Enum,
+      Integral,
+      Hashable
+    )
 
 class HasActorId a where
   actorId :: a -> ActorId
 
-class HasPosition a where
-  position :: a -> (MapId, CellId)
+data ActorLocation = ActorLocation
+  { _actorLocationMapId :: {-# UNPACK #-} !MapId,
+    _actorLocationCellId :: {-# UNPACK #-} !CellId
+  }
+  deriving stock (Show, Eq)
 
-class HasDirection a where
-  direction :: a -> Direction
-
-class HasController a b where
-  controller :: a -> b
+makeClassy ''ActorLocation

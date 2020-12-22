@@ -53,6 +53,7 @@ newtype AccountName =
     }
   deriving newtype ( Show
                    , IsString
+                   , Ord
                    , Eq
                    , FromBackendRow Postgres
                    , HasSqlEqualityCheck Postgres
@@ -65,6 +66,7 @@ newtype AccountNickName =
     }
   deriving newtype ( Show
                    , IsString
+                   , Ord
                    , Eq
                    , FromBackendRow Postgres
                    , HasSqlEqualityCheck Postgres
@@ -77,6 +79,7 @@ newtype AccountPassword =
     }
   deriving newtype ( Show
                    , IsString
+                   , Ord
                    , Eq
                    , FromBackendRow Postgres
                    , HasSqlEqualityCheck Postgres
@@ -89,6 +92,7 @@ newtype AccountIsOnline =
     }
   deriving newtype ( Show
                    , Eq
+                   , Ord
                    , FromBackendRow Postgres
                    , HasSqlEqualityCheck Postgres
                    , HasSqlValueSyntax PgValueSyntax
@@ -136,6 +140,7 @@ newtype AccountIsBanned =
     }
   deriving newtype ( Show
                    , Eq
+                   , Ord
                    , FromBackendRow Postgres
                    , HasSqlEqualityCheck Postgres
                    , HasSqlValueSyntax PgValueSyntax
@@ -171,6 +176,7 @@ newtype AccountIsAdmin =
     }
   deriving newtype ( Show
                    , Eq
+                   , Ord
                    , FromBackendRow Postgres
                    , HasSqlEqualityCheck Postgres
                    , HasSqlValueSyntax PgValueSyntax
@@ -216,9 +222,11 @@ instance Table AccountT where
   primaryKey = AccountPK . _accountId
 
 type Account = AccountT Identity
+deriving instance Eq Account
 deriving instance Show Account
 
 type AccountPK = PrimaryKey AccountT Identity
+deriving instance Eq AccountPK
 deriving instance Show AccountPK
 
 Account
@@ -250,9 +258,11 @@ instance Table AccountTicketT where
   primaryKey = AccountTicketPK . _accountTicketId
 
 type AccountTicket = AccountTicketT Identity
+deriving instance Eq AccountTicket
 deriving instance Show AccountTicket
 
 type AccountTicketPK = PrimaryKey AccountTicketT Identity
+deriving instance Eq AccountTicketPK
 deriving instance Show AccountTicketPK
 
 AccountTicket

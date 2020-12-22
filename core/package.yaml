@@ -14,43 +14,40 @@ description:
 
 dependencies:
 - base >= 4.7 && < 5
-- primitive
-- primitive-unlifted
-- primitive-addr
-- byteslice
 - bytestring
+- text
+- vector
+- exceptions
+- lens
 - scientific
 - time
-- ip
-- stm
+- clock
 - containers
 - unordered-containers
-- vector
 - vector-binary-instances
+- stm
+- stm-containers
 - directory
 - filepath
 - path
-- linear
-- pqueue
+- dlist
 - aeson
 - aeson-extra
 - aeson-pretty
-- clock
 - mtl
 - uuid
-- sockets
-- text
+- asil
+- binary
+- attoparsec
+- rio
+- network
+- streamly
 - beam-core
 - beam-postgres
 - beam-migrate
 - postgresql-simple
-- asil
-- binary
-- attoparsec
-- lens
-- rio
-- rio-prettyprint
-- dhall
+- Z-Data
+- Z-IO
 
 default-extensions:
   - NoImplicitPrelude 
@@ -59,10 +56,10 @@ library:
   source-dirs: src
   ghc-options:
     - -Wall
-    # - -fspecialise-aggressively
-    # - -fexpose-all-unfoldings
-    # - -fstatic-argument-transformation
-    # - -feager-blackholing
-    - -Werror
-    # - -O2
-    # - -fllvm
+    - -fno-full-laziness
+    - -ffun-to-thunk
+    - -funbox-strict-fields
+    - -feager-blackholing
+    - -fspecialise-aggressively
+    - -fstatic-argument-transformation
+    - -O2
