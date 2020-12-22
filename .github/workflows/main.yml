@@ -18,10 +18,17 @@ jobs:
         with:
           enable-stack: true
           stack-no-global: true
+      - name: Setup Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.stack
+            .stack-work
+          key: ${{ matrix.os }}-1
       - name: Build
         run: |
           git config --global url."https://github.com/".insteadOf git@github.com:
           git config --global url."https://".insteadOf git://
-          stack build
+          stack build --fast
       - name: Test
-        run: stack test
+        run: stack test --fast
