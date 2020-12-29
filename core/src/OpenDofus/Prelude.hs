@@ -24,6 +24,7 @@ module OpenDofus.Prelude
   ( module X,
     IP (..),
     Port (..),
+    FastBool (..),
     LazyByteString,
     Verbose,
     encodeTextLazy,
@@ -120,6 +121,19 @@ newtype Port = Port
       FromBackendRow Postgres,
       HasSqlEqualityCheck Postgres,
       HasSqlValueSyntax PgValueSyntax
+    )
+
+newtype FastBool = FastBool
+  { unFastBool :: Word8
+  }
+  deriving newtype
+    ( Show,
+      Eq,
+      Ord,
+      Num,
+      Real,
+      Enum,
+      Integral
     )
 
 type LazyByteString = LBS.ByteString

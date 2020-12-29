@@ -108,7 +108,7 @@ instance Constructible BS.ByteString where
 
 instance Constructible LBS.ByteString where
   type Elem LBS.ByteString = Char
-  cons = LBS.cons
+  cons = LBS.cons'
   {-# INLINE cons #-}
   uncons = LBS.uncons
   {-# INLINE uncons #-}

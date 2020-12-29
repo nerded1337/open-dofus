@@ -77,7 +77,7 @@ data GameState
   = Greeting
   | CharacterSelection !Account
   | GameCreation !Account !PlayerCharacter
-  | InGame !Account !PlayerCharacter !Map
+  | InGame !Account !ActorId !Map
 
 makePrisms ''GameState
 

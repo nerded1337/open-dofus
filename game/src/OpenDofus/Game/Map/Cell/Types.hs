@@ -7,6 +7,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -35,6 +36,14 @@ module OpenDofus.Game.Map.Cell.Types
     CellId (..),
     HasCellT (..),
     CellMovementType (..),
+    pattern CellMovementTypeDoor,
+    pattern CellMovementTypeTrigger,
+    pattern CellMovementTypeWalkableWeak,
+    pattern CellMovementTypeWalkable,
+    pattern CellMovementTypePaddock,
+    pattern CellMovementTypeRoad,
+    pattern CellMovementTypeWalkableFast,
+    cellMovementType,
   )
 where
 
@@ -44,50 +53,95 @@ import OpenDofus.Prelude
 
 type Cell a = CellT (Maybe InteractiveObjectInstance)
 
-data CellMovementType
-  = CellMovementTypeNonWalkable
-  | CellMovementTypeWalkable
-  | CellMovementTypeDoor
-  | CellMovementTypePaddock
-  | CellMovementTypePath
-  | CellMovementTypeTrigger
-  | CellMovementTypeUnknown Int
-  deriving stock (Show, Ord, Eq)
+newtype CellMovementType = CellMovementType
+  { unCellMovementType :: Word32
+  }
+  deriving newtype
+    ( Show,
+      Eq,
+      Ord,
+      Num,
+      Real,
+      Enum,
+      Integral
+    )
 
-instance Enum CellMovementType where
-  toEnum 0 = CellMovementTypeNonWalkable
-  toEnum 1 = CellMovementTypeDoor
-  toEnum 2 = CellMovementTypeTrigger
-  toEnum 4 = CellMovementTypeWalkable
-  toEnum 5 = CellMovementTypePaddock
-  toEnum 7 = CellMovementTypePath
-  toEnum x = CellMovementTypeUnknown x
+pattern CellMovementTypeNonWalkable :: CellMovementType
+pattern CellMovementTypeNonWalkable <-
+  0
+  where
+    CellMovementTypeNonWalkable = 0
 
-  fromEnum CellMovementTypeNonWalkable = 0
-  fromEnum CellMovementTypeDoor = 1
-  fromEnum CellMovementTypeTrigger = 2
-  fromEnum CellMovementTypeWalkable = 4
-  fromEnum CellMovementTypePaddock = 5
-  fromEnum CellMovementTypePath = 7
-  fromEnum (CellMovementTypeUnknown x) = x
+pattern CellMovementTypeDoor :: CellMovementType
+pattern CellMovementTypeDoor <-
+  1
+  where
+    CellMovementTypeDoor = 1
+
+pattern CellMovementTypeTrigger :: CellMovementType
+pattern CellMovementTypeTrigger <-
+  2
+  where
+    CellMovementTypeTrigger = 2
+
+pattern CellMovementTypeWalkableWeak :: CellMovementType
+pattern CellMovementTypeWalkableWeak <-
+  3
+  where
+    CellMovementTypeWalkableWeak = 3
+
+pattern CellMovementTypeWalkable :: CellMovementType
+pattern CellMovementTypeWalkable <-
+  4
+  where
+    CellMovementTypeWalkable = 4
+
+pattern CellMovementTypePaddock :: CellMovementType
+pattern CellMovementTypePaddock <-
+  5
+  where
+    CellMovementTypePaddock = 5
+
+pattern CellMovementTypeRoad :: CellMovementType
+pattern CellMovementTypeRoad <-
+  6
+  where
+    CellMovementTypeRoad = 6
+
+pattern CellMovementTypeWalkableFast :: CellMovementType
+pattern CellMovementTypeWalkableFast <-
+  7
+  where
+    CellMovementTypeWalkableFast = 7
+
+cellMovementType :: Word32 -> CellMovementType
+cellMovementType 0 = CellMovementTypeNonWalkable
+cellMovementType 1 = CellMovementTypeDoor
+cellMovementType 2 = CellMovementTypeTrigger
+cellMovementType 3 = CellMovementTypeWalkableWeak
+cellMovementType 4 = CellMovementTypeWalkable
+cellMovementType 5 = CellMovementTypePaddock
+cellMovementType 6 = CellMovementTypeRoad
+cellMovementType 7 = CellMovementTypeWalkableFast
+cellMovementType x = error $ "Cell walk type: " <> show x
 
 data CellT a = Cell
   { _cellId :: {-# UNPACK #-} !CellId,
-    _cellActive :: !Bool,
-    _cellLineOfSight :: !Bool,
+    _cellActive :: {-# UNPACK #-} !FastBool,
+    _cellLineOfSight :: {-# UNPACK #-} !FastBool,
     _cellLayerGroundRot :: {-# UNPACK #-} !Word8,
     _cellGroundLevel :: {-# UNPACK #-} !Word8,
-    _cellMovement :: !CellMovementType,
+    _cellMovement :: {-# UNPACK #-} !CellMovementType,
     _cellLayerGroundNum :: {-# UNPACK #-} !Word16,
     _cellGroundSlope :: {-# UNPACK #-} !Word8,
-    _cellLayerGroundFlip :: !Bool,
+    _cellLayerGroundFlip :: {-# UNPACK #-} !FastBool,
     _cellLayerObject1Num :: {-# UNPACK #-} !Word16,
     _cellLayerObject1Rot :: {-# UNPACK #-} !Word8,
-    _cellLayerObject1Flip :: !Bool,
-    _cellLayerObject2Flip :: !Bool,
-    _cellLayerObject2Interactive :: !Bool,
+    _cellLayerObject1Flip :: {-# UNPACK #-} !FastBool,
+    _cellLayerObject2Flip :: {-# UNPACK #-} !FastBool,
+    _cellLayerObject2Interactive :: {-# UNPACK #-} !FastBool,
     _cellLayerObject2Num :: {-# UNPACK #-} !Word16,
-    _cellInteractiveObjects :: !a
+    _cellInteractiveObject :: !a
   }
   deriving stock (Show, Functor, Foldable, Traversable)
 

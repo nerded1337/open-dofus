@@ -44,10 +44,12 @@ module OpenDofus.Game.Map.Types
   )
 where
 
+import Data.Compact
 import Data.HashMap.Strict as HM
 import qualified Data.HashTable.IO as H
 import OpenDofus.Database
 import OpenDofus.Game.Map.Actor
+import OpenDofus.Game.Time
 import OpenDofus.Game.Map.Cell
 import OpenDofus.Game.Map.Event
 import OpenDofus.Game.Map.Interactive
@@ -56,24 +58,24 @@ import OpenDofus.Prelude
 
 type HashTable k v = H.CuckooHashTable k v
 
-type MapInstance = MapInstanceT (Maybe InteractiveObjectInstance)
+type MapInstance = MapInstanceT (CellT (Maybe InteractiveObject))
 
 data MapInstanceT a = MapInstance
   { _mapInstanceTemplate :: {-# UNPACK #-} !Map,
-    _mapInstanceCells :: !(HM.HashMap CellId (CellT a))
+    _mapInstanceCells :: !(HM.HashMap CellId a)
   }
   deriving stock (Functor, Foldable, Traversable)
 
 makeClassy ''MapInstanceT
 
-type MapController = MapControllerT IO (Maybe InteractiveObjectInstance)
+type MapController = MapControllerT IO (CellT (Maybe InteractiveObject))
 
 data MapControllerT m a = MapController
-  { _mapControllerInstance :: {-# UNPACK #-} !(MapInstanceT a),
-    _mapControllerActors :: {-# UNPACK #-} !(HashTable ActorId GameActor),
-    _mapControllerDispatch :: !(ActorId -> [GameMessage] -> m ())
+  { _mapControllerInstance :: {-# UNPACK #-} !(Compact (MapInstanceT a)),
+    _mapControllerActors :: {-# UNPACK #-} !(HashTable ActorId Actor),
+    _mapControllerInteractiveObjectInstances :: {-# UNPACK #-} !(HashTable CellId InteractiveObjectInstance),
+    _mapControllerDispatch :: !(ActorId -> GameMessage -> m ())
   }
-  deriving stock (Functor, Foldable, Traversable)
 
 makeClassy ''MapControllerT
 
@@ -81,7 +83,8 @@ type MapEventReader m = MonadReader MapEventArgs m
 
 data MapEventArgs = MapEventArgs
   { _mapEventArgsEvent :: !MapEvent,
-    _mapEventArgsCtl :: !MapController
+    _mapEventArgsCtl :: !MapController,
+    _mapEventElapsed :: !(GameTime Millisecond)
   }
 
 makeClassy ''MapEventArgs

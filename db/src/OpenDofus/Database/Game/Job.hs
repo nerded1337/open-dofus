@@ -67,6 +67,7 @@ instance Table JobT where
     deriving stock (Generic)
     deriving anyclass (Beamable)
   primaryKey = JobPK . _jobId
+  {-# INLINE primaryKey #-}
 
 type Job = JobT Identity
 

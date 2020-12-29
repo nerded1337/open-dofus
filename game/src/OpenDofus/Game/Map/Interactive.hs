@@ -18,9 +18,8 @@
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 module OpenDofus.Game.Map.Interactive
-  ( module X
+  ( module X,
   )
 where
 
-import           OpenDofus.Game.Map.Interactive.Types
-                                               as X
+import OpenDofus.Game.Map.Interactive.Types as X

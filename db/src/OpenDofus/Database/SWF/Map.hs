@@ -110,8 +110,8 @@ getMap mid (d, w, h, bn, aid, _, out, cap, dat) (Object m) =
         (MapSubAreaPK $ MapSubAreaId sa)
         x
         y
-        w
-        h
+        (MapWidth w)
+        (MapHeight h)
         bn
         aid
         out

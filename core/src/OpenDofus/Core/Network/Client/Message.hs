@@ -22,7 +22,7 @@
 module OpenDofus.Core.Network.Client.Message
   ( HasClientMessage (..),
     ClientMessage (..),
-    ClientPacket
+    ClientPacket,
   )
 where
 
@@ -38,4 +38,3 @@ data ClientMessage
   deriving (Show, Eq)
 
 makeClassy ''ClientMessage
-

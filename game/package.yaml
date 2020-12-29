@@ -30,6 +30,8 @@ dependencies:
 - o-clock
 - chronos
 - mtl
+- dlist
+- primitive
 - uuid
 - beam-core
 - beam-postgres
@@ -37,6 +39,7 @@ dependencies:
 - postgresql-simple
 - attoparsec
 - unagi-chan
+- compact
 - uri-encode
 - bitwise-enum
 - base64-bytestring
@@ -46,6 +49,7 @@ dependencies:
 
 default-extensions:
   - NoImplicitPrelude 
+  - Strict
 
 executables:
   open-dofus-game:
@@ -58,8 +62,12 @@ executables:
       - -ffun-to-thunk
       - -funbox-strict-fields
       - -feager-blackholing
+      - -fexpose-all-unfoldings
       - -fspecialise-aggressively
       - -fstatic-argument-transformation
+      - -fspec-constr-keen
+      - -flate-specialise
+      - -flate-dmd-anal
       - -O2
       - -rtsopts
-      - "\"-with-rtsopts=-N -H1024m -A128m -AL64m -G3 -I0 -qn8 -c -S\""
+      - "\"-with-rtsopts=-N -H1024m -A128m -AL128m -Iw300 -qn8 -xn -S\""

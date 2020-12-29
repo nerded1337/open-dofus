@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -42,20 +43,18 @@ module OpenDofus.Core.Network.Server
     startServer,
     emit,
     kick,
-    sendClientMessages,
+    emitToClient,
   )
 where
 
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Writer.Class (MonadWriter (tell))
 import Control.Monad.Writer.Strict (execWriterT)
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Internal as BI
-import qualified Data.ByteString.Lazy as LBS
-import Data.ByteString.Lazy.Builder (toLazyByteString)
 import qualified Data.ByteString.Lazy.Builder as LBS
 import qualified Data.DList as DL
 import qualified Network.Socket as SK
+import OpenDofus.Core.Application
+import OpenDofus.Core.Data.Constructible
 import OpenDofus.Core.Network.Client
   ( ClientConnection (ClientConnection),
     ClientMessage (..),
@@ -81,14 +80,13 @@ import OpenDofus.Core.Network.Types
   )
 import OpenDofus.Prelude
 import qualified StmContainers.Map as M
-import qualified Streamly.Data.Array.Storable.Foreign as A
-import qualified Streamly.Data.Fold as FL
+import qualified Streamly.FileSystem.Handle as FS
+import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
 import qualified Streamly.Internal.Data.Tuple.Strict as SS
-import qualified Streamly.Internal.Data.Unfold as UF
+import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Network.Inet.TCP as TCP
-import qualified Streamly.Network.Socket as NS
 import qualified Streamly.Prelude as S
-import Unsafe.Coerce (unsafeCoerce)
+import Z.Data.CBytes (w2c)
 
 type IsServer m s =
   ( HasServerState s m (ClientTypeOf s),
@@ -112,13 +110,16 @@ startServer server clientHandler = do
   where
     options = [(SK.ReuseAddr, 1), (SK.KeepAlive, 0), (SK.NoDelay, 1)]
 
-    createConnection sock =
-      liftIO $
-        ClientConnection sock
-          <$> createNetworkId
-          <*> SK.getPeerName sock
+    createConnection sock = liftIO $ do
+      -- The socket is done once we have converted it to a Handle
+      !peer <- SK.getPeerName sock
+      ClientConnection
+        <$> SK.socketToHandle sock ReadWriteMode
+        <*> createNetworkId
+        <*> pure peer
 
-    createNetworkId = NetworkId <$> nextRandom
+    createNetworkId =
+      NetworkId <$> nextRandom
 
 clientStream ::
   IsServerContext m s =>
@@ -126,20 +127,23 @@ clientStream ::
   ClientHandler m s () ->
   ClientConnection ->
   S.SerialT m ()
-clientStream server clientHandler conn = S.mapM (clientLoop server clientHandler) clientMessages
+clientStream server clientHandler conn =
+  S.mapM
+    (clientLoop server clientHandler)
+    (onConnected <> onClientSent <> onDisconnected)
   where
-    clientMessages = onConnected <> onClientSent <> onDisconnected
-    onConnected = pure $ SS.Tuple' conn ClientConnected
-    onDisconnected = pure $ SS.Tuple' conn ClientDisconnected
+    mkTup = SS.Tuple' conn
+    onConnected = pure $ mkTup ClientConnected
+    onDisconnected = pure $ mkTup ClientDisconnected
+    arrayToBS 10 xs = xs
+    arrayToBS x xs = w2c x :- xs
     onClientSent =
-      let sk = conn ^. clientConnectionSocket
-       in S.finally
-            (liftIO $ SK.close sk)
-            $ S.unfold (UF.concat NS.readChunksWithBufferOf A.read) (defaultRcvBuffSize, sk)
-              & S.filter (/= BI.c2w '\n')
-              & S.splitOn (== 0) FL.toList
-              & S.handle @_ @_ @SomeException (pure mempty)
-              & S.map (SS.Tuple' conn . ClientSent . BS.pack . unsafeCoerce)
+      let !sk = conn ^. clientConnectionSocket
+       in S.finally (liftIO $ hClose sk) $
+            S.unfold FS.readChunksWithBufferOf (defaultRcvBuffSize, sk)
+              & AS.splitOn 0
+              & S.handle @_ @_ @SomeException mempty
+              & S.map (mkTup . ClientSent . A.foldr arrayToBS mempty)
 
 clientLoop ::
   IsServerContext m s =>
@@ -148,11 +152,11 @@ clientLoop ::
   SS.Tuple' ClientConnection ClientMessage ->
   m ()
 clientLoop srv clientHandler (SS.Tuple' cc msg) = do
-  let netId = cc ^. networkId
-      clients = srv ^. serverState . serverStateClients
+  let !netId = cc ^. networkId
+      !clients = srv ^. serverState . serverStateClients
   client <- fmap (fromMaybe (error "impossible")) $ case msg of
     ClientConnected -> do
-      client <- (srv ^. serverStateMakeClient) cc
+      !client <- (srv ^. serverStateMakeClient) cc
       liftIO $ atomically $ M.insert client netId clients
       pure $ Just client
     ClientDisconnected ->
@@ -164,43 +168,36 @@ clientLoop srv clientHandler (SS.Tuple' cc msg) = do
     _ ->
       liftIO $ atomically $ M.lookup netId clients
   om <- execWriterT $ runReaderT clientHandler $ HandlerInput srv client msg
-  liftIO $ sendMessages (client ^. clientConnection . clientConnectionSocket) om
+  emitToClient client om
 
 emit :: (ToNetwork a, MonadWriter (DL.DList a) m) => a -> m ()
 emit = tell . pure
 {-# INLINE emit #-}
 
-sendClientMessages ::
+emitToClient ::
   (MonadIO m, ToNetwork a, Traversable t, HasClientConnection c) =>
   c ->
   t a ->
   m ()
-sendClientMessages client =
-  sendMessages (client ^. clientConnection . clientConnectionSocket)
-{-# INLINE sendClientMessages #-}
+emitToClient client =
+  emitToSocket (client ^. clientConnection . clientConnectionSocket)
+{-# INLINE emitToClient #-}
 
-sendMessages ::
+emitToSocket ::
   (MonadIO m, ToNetwork a, Traversable t) =>
-  SK.Socket ->
+  Handle ->
   t a ->
   m ()
-sendMessages socket = sendBuilder socket . foldMap ((<> LBS.word8 0) . toNetwork)
-{-# INLINE sendMessages #-}
+emitToSocket h = emitSocketBuilder h . foldMap ((<> LBS.word8 0) . toNetwork)
+{-# INLINE emitToSocket #-}
 
-sendBuilder :: MonadIO m => SK.Socket -> LBS.Builder -> m ()
-sendBuilder socket message
-  | null encodedMessage =
-    pure ()
-  | otherwise =
-    void $
-      liftIO $
-        try @_ @SomeException $
-          S.fold
-            (NS.write socket)
-            (S.fromList $ unsafeCoerce encodedMessage)
-  where
-    encodedMessage = BS.unpack $ LBS.toStrict $ toLazyByteString message
-{-# INLINE sendBuilder #-}
+emitSocketBuilder :: MonadIO m => Handle -> LBS.Builder -> m ()
+emitSocketBuilder h message =
+  void $
+    liftIO $
+      try @_ @SomeException $
+        LBS.hPutBuilder h message
+{-# INLINE emitSocketBuilder #-}
 
 kick :: (MonadIO m, MonadReader a m, HasClientConnection a) => m ()
 kick = doKick =<< ask
@@ -209,6 +206,6 @@ kick = doKick =<< ask
       liftIO
         . void
         . try @_ @SomeException
-        . SK.close
+        . hClose
         . view (clientConnection . clientConnectionSocket)
 {-# INLINE kick #-}

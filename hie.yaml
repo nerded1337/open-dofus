@@ -10,27 +10,17 @@ cradle:
       config:
         cradle:
           stack:
-            - path: "./core"
-              component: "open-dofus-core:lib"
             - path: "./db"
               component: "open-dofus-db:lib"
     - path: "./auth"
       config:
         cradle:
           stack:
-            - path: "./core"
-              component: "open-dofus-core:lib"
-            - path: "./db"
-              component: "open-dofus-db:lib"
             - path: "./auth"
               component: "open-dofus-auth:exe:open-dofus-auth"
     - path: "./game"
       config:
         cradle:
           stack:
-            - path: "./core"
-              component: "open-dofus-core:lib"
-            - path: "./db"
-              component: "open-dofus-db:lib"
             - path: "./game"
               component: "open-dofus-game:exe:open-dofus-game"

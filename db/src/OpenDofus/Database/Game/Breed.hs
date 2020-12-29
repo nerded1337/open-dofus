@@ -55,38 +55,45 @@ newtype BreedId = BreedId
       HasSqlValueSyntax PgValueSyntax
     )
 
-data BreedCharacteristicCostT f = BreedCharacteristicCost
-  { _breedCharacteristicCostBreed :: !(PrimaryKey BreedT f),
-    _breedCharacteristicCostElement :: !(C f Word32),
-    _breedCharacteristicCostFloor :: !(C f Word32),
-    _breedCharacteristicCostValue :: !(C f Word32),
-    _breedCharacteristicCostBonus :: !(C f Word32)
+data BreedCaracteristicCostT f = BreedCaracteristicCost
+  { _breedCaracteristicCostBreed :: !(PrimaryKey BreedT f),
+    _breedCaracteristicCostElement :: !(C f Word32),
+    _breedCaracteristicCostFloor :: !(C f Word32),
+    _breedCaracteristicCostValue :: !(C f Word32),
+    _breedCaracteristicCostBonus :: !(C f Word32)
   }
   deriving (Generic, Beamable)
 
-instance Table BreedCharacteristicCostT where
+instance Table BreedCaracteristicCostT where
   data
     PrimaryKey
-      BreedCharacteristicCostT
+      BreedCaracteristicCostT
       f
-    = BreedCharacteristicCostId
+    = BreedCaracteristicCostPK
         !(PrimaryKey BreedT f)
         !(C f Word32)
         !(C f Word32)
     deriving (Generic, Beamable)
   primaryKey =
-    BreedCharacteristicCostId
-      <$> _breedCharacteristicCostBreed
-      <*> _breedCharacteristicCostElement
-      <*> _breedCharacteristicCostFloor
+    BreedCaracteristicCostPK
+      <$> _breedCaracteristicCostBreed
+      <*> _breedCaracteristicCostElement
+      <*> _breedCaracteristicCostFloor
+  {-# INLINE primaryKey #-}
 
-type BreedCharacteristicCost = BreedCharacteristicCostT Identity
+type BreedCaracteristicCost = BreedCaracteristicCostT Identity
 
-deriving instance Eq BreedCharacteristicCost
+deriving instance Eq BreedCaracteristicCost
 
-deriving instance Show BreedCharacteristicCost
+deriving instance Show BreedCaracteristicCost
 
-BreedCharacteristicCost
+type BreedCaracteristicCostPK = PrimaryKey BreedCaracteristicCostT Identity
+
+deriving instance Eq BreedCaracteristicCostPK
+
+deriving instance Show BreedCaracteristicCostPK
+
+BreedCaracteristicCost
   (BreedPK (LensFor characteristicCostBred))
   (LensFor characteristicCostElement)
   (LensFor characteristicCostFloor)
@@ -102,11 +109,13 @@ data BreedSpellT f = BreedSpell
 
 instance Table BreedSpellT where
   data PrimaryKey BreedSpellT f
-    = BreedSpellId
+    = BreedSpellPK
         !(PrimaryKey BreedT f)
         !(PrimaryKey SpellT f)
     deriving (Generic, Beamable)
-  primaryKey = BreedSpellId <$> _breedSpellBreed <*> _breedSpellSpell
+  primaryKey =
+    BreedSpellPK <$> _breedSpellBreed <*> _breedSpellSpell
+  {-# INLINE primaryKey #-}
 
 type BreedSpell = BreedSpellT Identity
 
@@ -114,8 +123,16 @@ deriving instance Eq BreedSpell
 
 deriving instance Show BreedSpell
 
-BreedSpell (BreedPK (LensFor breedSpellBreed)) (SpellPK (LensFor breedSpellSpell)) =
-  tableLenses
+type BreedSpellPK = PrimaryKey BreedSpellT Identity
+
+deriving instance Eq BreedSpellPK
+
+deriving instance Show BreedSpellPK
+
+BreedSpell
+  (BreedPK (LensFor breedSpellBreed))
+  (SpellPK (LensFor breedSpellSpell)) =
+    tableLenses
 
 data BreedT f = Breed
   { _breedId :: !(C f BreedId),
@@ -130,6 +147,7 @@ instance Table BreedT where
   data PrimaryKey BreedT f = BreedPK !(C f BreedId)
     deriving (Generic, Beamable)
   primaryKey = BreedPK . _breedId
+  {-# INLINE primaryKey #-}
 
 type Breed = BreedT Identity
 

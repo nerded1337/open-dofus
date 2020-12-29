@@ -1,4 +1,10 @@
--- Types.hs --
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE TemplateHaskell #-}
+
+-- Direction.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
 
@@ -17,14 +23,24 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-module OpenDofus.Game.Map.Interactive.Types
-  ( InteractiveObjectInstance (..),
+module OpenDofus.Game.Map.Direction
+  ( Direction (..),
+    HasDirection (..),
   )
 where
 
 import OpenDofus.Prelude
 
-data InteractiveObjectInstance = InteractiveObjectInstance
-  {
-  }
-  deriving (Show)
+data Direction
+  = East
+  | SouthEast
+  | South
+  | SouthWest
+  | West
+  | NorthWest
+  | North
+  | NorthEast
+  deriving stock (Show, Eq, Ord, Bounded, Enum, Generic)
+  deriving anyclass Hashable
+
+makeClassy ''Direction

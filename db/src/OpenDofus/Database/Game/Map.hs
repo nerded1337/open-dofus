@@ -69,6 +69,42 @@ newtype MapId = MapId
       FromBackendRow Postgres
     )
 
+newtype MapWidth = MapWidth
+  { unMapWidth :: Word32
+  }
+  deriving newtype
+    ( Show,
+      Ord,
+      Eq,
+      Num,
+      Real,
+      Enum,
+      Integral,
+      Hashable,
+      HasDefaultSqlDataType Postgres,
+      HasSqlValueSyntax PgValueSyntax,
+      HasSqlEqualityCheck Postgres,
+      FromBackendRow Postgres
+    )
+
+newtype MapHeight = MapHeight
+  { unMapHeight :: Word32
+  }
+  deriving newtype
+    ( Show,
+      Ord,
+      Eq,
+      Num,
+      Real,
+      Enum,
+      Integral,
+      Hashable,
+      HasDefaultSqlDataType Postgres,
+      HasSqlValueSyntax PgValueSyntax,
+      HasSqlEqualityCheck Postgres,
+      FromBackendRow Postgres
+    )
+
 newtype MapCompressedData = MapCompressedData
   { unMapCompressedData :: Text
   }
@@ -169,6 +205,7 @@ instance Table MapSuperAreaT where
   data PrimaryKey MapSuperAreaT f = MapSuperAreaPK !(C f MapSuperAreaId)
     deriving (Generic, Beamable)
   primaryKey = MapSuperAreaPK . _mapSuperAreaId
+  {-# INLINE primaryKey #-}
 
 type MapSuperArea = MapSuperAreaT Identity
 
@@ -197,6 +234,7 @@ instance Table MapAreaT where
   data PrimaryKey MapAreaT f = MapAreaPK !(C f MapAreaId)
     deriving (Generic, Beamable)
   primaryKey = MapAreaPK . _mapAreaId
+  {-# INLINE primaryKey #-}
 
 type MapArea = MapAreaT Identity
 
@@ -225,6 +263,7 @@ instance Table MapSubAreaT where
   data PrimaryKey MapSubAreaT f = MapSubAreaPK !(C f MapSubAreaId)
     deriving (Generic, Beamable)
   primaryKey = MapSubAreaPK . _mapSubAreaId
+  {-# INLINE primaryKey #-}
 
 type MapSubArea = MapSubAreaT Identity
 
@@ -264,6 +303,7 @@ instance Table MapSubAreaNeighbourT where
     MapSubAreaNeighbourPK
       <$> _mapSubAreaNeighbourOrigin
       <*> _mapSubAreaNeighbourDestination
+  {-# INLINE primaryKey #-}
 
 type MapSubAreaNeighbour = MapSubAreaNeighbourT Identity
 
@@ -288,8 +328,8 @@ data MapT f = Map
     _mapSubArea :: !(PrimaryKey MapSubAreaT f),
     _mapX :: !(C f Int32),
     _mapY :: !(C f Int32),
-    _mapWidth :: !(C f Word32),
-    _mapHeight :: !(C f Word32),
+    _mapWidth :: !(C f MapWidth),
+    _mapHeight :: !(C f MapHeight),
     _mapBackgroundNum :: !(C f Int32),
     _mapAmbianceId :: !(C f Int32),
     _mapIsOutdoor :: !(C f Bool),
@@ -303,6 +343,7 @@ instance Table MapT where
   data PrimaryKey MapT f = MapPK !(C f MapId)
     deriving (Generic, Beamable)
   primaryKey = MapPK . _mapId
+  {-# INLINE primaryKey #-}
 
 type Map = MapT Identity
 

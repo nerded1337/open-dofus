@@ -40,9 +40,8 @@ import OpenDofus.Prelude
 
 data PlayerCharacter = PlayerCharacter
   { _playerCharacterBaseCharacter :: {-# UNPACK #-} !Character,
-    _playerCharacterCharacterLocation :: {-# UNPACK #-} !ActorLocation,
     _playerCharacterCharacterLook :: {-# UNPACK #-} !CharacterLook,
-    _playerCharacterCharacterDirection :: !ActorDirection,
+    _playerCharacterCharacterPosition :: {-# UNPACK #-} !CharacterPosition,
     _playerCharacterRestrictions :: {-# UNPACK #-} !ActorRestrictionSet
   }
   deriving stock (Show, Eq)
@@ -54,9 +53,4 @@ instance HasActorId PlayerCharacter where
     ActorId
       . unCharacterId
       . view (playerCharacterBaseCharacter . characterId)
-
-instance HasActorLocation PlayerCharacter where
-  actorLocation = playerCharacterCharacterLocation
-
-instance HasActorDirection PlayerCharacter where
-  actorDirection = playerCharacterCharacterDirection
+  {-# INLINE actorId #-}

@@ -169,7 +169,7 @@ onLogin salt credentials = do
   loginResult <-
     traverseCollapse
       (runSerializable @AuthDbConn . uncurry (checkLogin salt))
-      (parseLogin (BS.split '#' credentials))
+      (parseLogin (BS.split '#' (BS.filter (/= '\n') credentials)))
   case loginResult of
     Right acc -> do
       debug "Login account"
@@ -196,7 +196,6 @@ onProtocolRequired salt protocol
 
 onClientDisconnected :: Maybe Account -> AuthHandler AuthState
 onClientDisconnected loggedAccount = do
-  debug "Client disconnected"
   traverse_ setOffline loggedAccount
   stay
   where
@@ -208,7 +207,6 @@ onClientDisconnected loggedAccount = do
 
 onClientConnected :: AuthHandler AuthState
 onClientConnected = do
-  debug "Client connected"
   salt <- evalRandTIO newSalt
   emit $ HelloConnect salt
   pure $ ProtocolRequired salt
@@ -224,10 +222,11 @@ stateHandler (ProtocolRequired salt) (ClientSent protocol) =
   onProtocolRequired salt protocol
 stateHandler (LoggingIn salt) (ClientSent credentials) =
   onLogin salt credentials
-stateHandler (LoggedIn acc worlds) (ClientSent ('A' :- 'x' :- _)) =
-  onCharactersList acc worlds
-stateHandler (LoggedIn acc worlds) (ClientSent ('A' :- 'X' :- selectedWorldId)) =
-  onWorldSelection acc worlds selectedWorldId
+stateHandler (LoggedIn acc worlds) (ClientSent packet) =
+  case packet of
+    ('A' :- 'x' :- _) -> onCharactersList acc worlds
+    ('A' :- 'X' :- selectedWorldId) -> onWorldSelection acc worlds selectedWorldId
+    _ -> stay
 stateHandler Kicked _ = do
   kick
   stay
@@ -255,6 +254,9 @@ dispatchToHandler = writeState =<< transition =<< readStateAndMsg
     transition = uncurry stateHandler
     readStateAndMsg = (,) <$> readState <*> currentMsg
     currentMsg = view handlerInputMessage
+
+logMessage :: AuthHandler ()
+logMessage = debug . showText =<< view handlerInputMessage
 
 app :: IO ()
 app = do
@@ -284,7 +286,7 @@ app = do
     AuthServer
       <$> (ServerState 8080 makeClient <$> M.newIO)
       <*> pure authDbPool
-  startServer server dispatchToHandler
+  startServer server (logMessage *> dispatchToHandler)
   where
     makeClient conn = AuthClient <$> newIORef Greeting <*> pure conn
 

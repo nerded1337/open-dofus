@@ -31,7 +31,7 @@ module OpenDofus.Database.Game
     GameQuery (..),
     GameDbConn (..),
     breed,
-    breedCost,
+    breedCaracteristicCost,
     breedSpell,
     effect,
     spell,
@@ -89,7 +89,7 @@ instance HasQueryType GameDbConn where
 
 data GameDb f = GameDb
   { _dbBreed :: !(f (TableEntity BreedT)),
-    _dbBreedCost :: !(f (TableEntity BreedCharacteristicCostT)),
+    _dbBreedCaracteristicCost :: !(f (TableEntity BreedCaracteristicCostT)),
     _dbBreedSpell :: !(f (TableEntity BreedSpellT)),
     _dbEffect :: !(f (TableEntity EffectT)),
     _dbSpell :: !(f (TableEntity SpellT)),
@@ -116,8 +116,32 @@ data GameDb f = GameDb
   deriving stock (Generic)
   deriving anyclass (Database Postgres)
 
-GameDb (TableLens breed) (TableLens breedCost) (TableLens breedSpell) (TableLens effect) (TableLens spell) (TableLens spellLevel) (TableLens itemSuperType) (TableLens itemType) (TableLens itemSlot) (TableLens item) (TableLens mapSuperArea) (TableLens mapArea) (TableLens mapSubArea) (TableLens mapSubAreaNeighbour) (TableLens map) (TableLens job) (TableLens skill) (TableLens skillCraft) (TableLens interactiveObject) (TableLens interactiveObjectGfx) (TableLens character) (TableLens characterPosition) (TableLens characterLook) (TableLens characterCaracteristic) =
-  dbLenses
+GameDb
+  (TableLens breed)
+  (TableLens breedCaracteristicCost)
+  (TableLens breedSpell)
+  (TableLens effect)
+  (TableLens spell)
+  (TableLens spellLevel)
+  (TableLens itemSuperType)
+  (TableLens itemType)
+  (TableLens itemSlot)
+  (TableLens item)
+  (TableLens mapSuperArea)
+  (TableLens mapArea)
+  (TableLens mapSubArea)
+  (TableLens mapSubAreaNeighbour)
+  (TableLens map)
+  (TableLens job)
+  (TableLens skill)
+  (TableLens skillCraft)
+  (TableLens interactiveObject)
+  (TableLens interactiveObjectGfx)
+  (TableLens character)
+  (TableLens characterPosition)
+  (TableLens characterLook)
+  (TableLens characterCaracteristic) =
+    dbLenses
 
 gameDb :: DatabaseSettings Postgres GameDb
 gameDb = unCheckDatabase $ evaluateDatabase gameDbMigrations
@@ -140,8 +164,8 @@ initialMigration _ =
           (field "description" (varchar Nothing) notNull)
       )
     <*> createTable
-      "breed_characteristic_cost"
-      ( BreedCharacteristicCost
+      "breed_caracteristic_cost"
+      ( BreedCaracteristicCost
           (BreedPK $ field "breed_id" int notNull)
           (field "element" int notNull)
           (field "floor" int notNull)

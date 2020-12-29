@@ -45,7 +45,8 @@ data CharacterCreationFailureReason
   | CharacterCreationFailureReasonInvalidInfos
 
 data GameMessage
-  = HelloGame
+  = FullySerialized Builder
+  | HelloGame
   | AccountTicketIsInvalid
   | AccountTicketIsValid
   | AccountRegionalVersion
@@ -53,17 +54,32 @@ data GameMessage
       {-# UNPACK #-} !AccountRemainingSubscriptionInMilliseconds
       ![CharacterListInfo]
   | CharacterCreationSuccess
-  | CharacterCreationFailure !CharacterCreationFailureReason
-  | CharacterSelectionSuccess {-# UNPACK #-} !PlayerCharacter
+  | CharacterCreationFailure
+      !CharacterCreationFailureReason
+  | CharacterSelectionSuccess
+      {-# UNPACK #-} !PlayerCharacter
   | GameCreationSuccess
-  | GameDataMap {-# UNPACK #-} !MapId {-# UNPACK #-} !MapCreationDate {-# UNPACK #-} !MapDataKey
-  | MapActorSpawn ![GameActor]
-  | MapActorDespawn ![GameActor]
+  | GameDataMap
+      {-# UNPACK #-} !MapId
+      {-# UNPACK #-} !MapCreationDate
+      {-# UNPACK #-} !MapDataKey
+  | MapActorSpawn
+      ![Actor]
+  | MapActorDespawn
+      ![ActorId]
   | AccountStats
-  | AccountRestrictions {-# UNPACK #-} !ActorRestrictionSet
+  | AccountRestrictions
+      {-# UNPACK #-} !ActorRestrictionSet
   | GameDataSuccess
+  | GameAction
+      !Bool
+      {-# UNPACK #-} !EffectId
+      {-# UNPACK #-} !ActorId
+      {-# UNPACK #-} !ByteString
+  | BasicNoOperation
 
 instance ToNetwork GameMessage where
+  toNetwork (FullySerialized x) = x
   toNetwork HelloGame = "HG"
   toNetwork AccountTicketIsInvalid = "ATE"
   toNetwork AccountTicketIsValid = "ATK0"
@@ -125,18 +141,28 @@ instance ToNetwork GameMessage where
     "GM" <> toNetwork (FoldNetwork (ToMapActorDespawn <$> actors))
   toNetwork (AccountRestrictions restrictions) =
     "AR" <> string8 (encodeRestrictions restrictions ^. re (base 36))
+  toNetwork BasicNoOperation =
+    "BN"
+  toNetwork (GameAction ackRequired eid aid params) =
+    "GA" <> bool mempty (word32Dec (unEffectId eid)) ackRequired
+      <> ";"
+      <> word32Dec (unEffectId eid)
+      <> ";"
+      <> word64Dec (unActorId aid)
+      <> ";"
+      <> byteString params
   {-# INLINE toNetwork #-}
 
-newtype ToMapActorSpawn = ToMapActorSpawn GameActor
+newtype ToMapActorSpawn = ToMapActorSpawn Actor
 
 instance ToNetwork ToMapActorSpawn where
-  toNetwork (ToMapActorSpawn actor) =
-    "|+" <> word32Dec cid <> ";" <> word8Dec dir <> ";" <> go actor
+  toNetwork (ToMapActorSpawn a) =
+    "|+" <> word32Dec cid <> ";" <> word8Dec dir <> ";" <> go a
     where
-      cid = unCellId $ actor ^. actorLocation . actorLocationCellId
-      dir = fromIntegral . fromEnum $ actor ^. actorDirection
-      aid = actor ^. to actorId
-      go (GameActorPC pc) =
+      cid = unCellId $ a ^. actorLocation . actorLocationCellId
+      dir = fromIntegral . fromEnum $ a ^. direction
+      aid = a ^. to actorId
+      go (Actor _ _ _ (ActorSpecializationPC pc)) =
         "0" -- entity type: player character
           <> ";"
           <> word64Dec (unActorId aid)
@@ -192,12 +218,11 @@ instance ToNetwork ToMapActorSpawn where
         where
           baseChar = pc ^. playerCharacterBaseCharacter
           look = pc ^. playerCharacterCharacterLook
+      {-# INLINE go #-}
   {-# INLINE toNetwork #-}
 
-newtype ToMapActorDespawn = ToMapActorDespawn GameActor
+newtype ToMapActorDespawn = ToMapActorDespawn ActorId
 
 instance ToNetwork ToMapActorDespawn where
-  toNetwork (ToMapActorDespawn actor) = "|-" <> word64Dec (unActorId aid)
-    where
-      aid = actor ^. to actorId
+  toNetwork (ToMapActorDespawn aid) = "|-" <> word64Dec (unActorId aid)
   {-# INLINE toNetwork #-}

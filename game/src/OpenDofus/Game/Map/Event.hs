@@ -1,3 +1,7 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
+
 -- Event.hs ---
 
 -- Copyright (C) 2020 Nerd Ed
@@ -17,18 +21,36 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE DerivingStrategies #-}
-
 module OpenDofus.Game.Map.Event
-  ( MapEvent(..)
+  ( MapEvent (..),
+    ActionStartParams,
   )
 where
 
-import           OpenDofus.Game.Map.Actor
-import           OpenDofus.Prelude
+import Data.ByteString
+import OpenDofus.Database.Game.Effect
+import OpenDofus.Database.Game.Map
+import OpenDofus.Game.Map.Actor
+import OpenDofus.Prelude
+
+type ActionStartParams = ByteString
 
 data MapEvent
-  = MapEventActorSpawn {-# UNPACK #-} !GameActor
-  | MapEventActorDespawn {-# UNPACK #-} !GameActor
-  | MapEventDispatchInformations {-# UNPACK #-} !GameActor
+  = MapEventActorSpawn
+      {-# UNPACK #-} !Actor
+  | MapEventActorDespawn
+      {-# UNPACK #-} !ActorId
+  | MapEventDispatchInformations
+      {-# UNPACK #-} !ActorId
+  | MapEventActorActionStart
+      {-# UNPACK #-} !ActorId
+      {-# UNPACK #-} !EffectId
+      {-# UNPACK #-} !ActionStartParams
+  | MapEventActorActionAck
+      {-# UNPACK #-} !ActorId
+      {-# UNPACK #-} !EffectId
+  | MapEventActorActionAbort
+      {-# UNPACK #-} !ActorId
+      {-# UNPACK #-} !EffectId
+      {-# UNPACK #-} !CellId
   deriving stock (Show)

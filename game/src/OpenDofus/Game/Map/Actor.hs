@@ -6,6 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
 -- Actor.hs ---
@@ -29,7 +30,14 @@
 
 module OpenDofus.Game.Map.Actor
   ( module X,
-    GameActor (..),
+    Actor (..),
+    HasActor (..),
+    ActorSpecialization (..),
+    HasActorSpecialization (..),
+    ActorState (..),
+    HasActorState (..),
+    ActorAction (..),
+    HasActorAction (..),
     loadPlayerCharacter,
   )
 where
@@ -38,32 +46,68 @@ import OpenDofus.Database
 import OpenDofus.Game.Map.Actor.PlayerCharacter as X
 import OpenDofus.Game.Map.Actor.Restriction as X
 import OpenDofus.Game.Map.Actor.Types as X
+import OpenDofus.Game.Map.Direction as X
+import OpenDofus.Game.Map.Movement as X
+import OpenDofus.Game.Time
 import OpenDofus.Prelude
 
-newtype GameActor
-  = GameActorPC PlayerCharacter
-  deriving newtype (Show)
+data ActorAction
+  = ActorActionMoving
+      {-# UNPACK #-} !(MovementPath CellId)
+      {-# UNPACK #-} !(GameTime Millisecond)
+  deriving stock (Show, Eq)
 
-instance HasActorId GameActor where
-  actorId (GameActorPC pc) = pc ^. to actorId
+makeClassy ''ActorAction
 
-instance HasActorLocation GameActor where
-  actorLocation f (GameActorPC pc) =
-    GameActorPC <$> actorLocation f pc
+data ActorState
+  = ActorIdle
+  | ActorDoing !ActorAction
+  deriving stock (Show, Eq)
 
-instance HasActorDirection GameActor where
-  actorDirection f (GameActorPC pc) =
-    GameActorPC <$> actorDirection f pc
+makeClassy ''ActorState
+
+newtype ActorSpecialization
+  = ActorSpecializationPC PlayerCharacter
+  deriving newtype (Show, Eq)
+
+makeClassy ''ActorSpecialization
+
+instance HasActorId ActorSpecialization where
+  actorId (ActorSpecializationPC pc) = pc ^. to actorId
+  {-# INLINE actorId #-}
+
+data Actor = Actor
+  { _gameActorState :: !ActorState,
+    _gameActorLocation :: {-# UNPACK #-} !ActorLocation,
+    _gameActorDirection :: !Direction,
+    _gameActorSpecialization :: !ActorSpecialization
+  }
+  deriving stock (Eq)
+
+makeClassy ''Actor
+
+instance Show Actor where
+  show = show . view gameActorSpecialization
+
+instance HasActorId Actor where
+  actorId = actorId . view gameActorSpecialization
+  {-# INLINE actorId #-}
+
+instance HasActorLocation Actor where
+  actorLocation = gameActorLocation
+  {-# INLINE actorLocation #-}
+
+instance HasDirection Actor where
+  direction = gameActorDirection
+  {-# INLINE direction #-}
 
 loadPlayerCharacter ::
   (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m) =>
   CharacterId ->
   m (Maybe PlayerCharacter)
-loadPlayerCharacter cid = do
-  r <- runSerializable @GameDbConn query
-  pure $ build <$> r <*> pure SouthEast <*> pure defaultRestrictions
+loadPlayerCharacter = (fmap . fmap) build . runSerializable @GameDbConn . query
   where
-    query = GameQuery $
+    query cid = GameQuery $
       runSelectReturningOne $
         select $ do
           c <- all_ (gameDb ^. character)
@@ -72,14 +116,12 @@ loadPlayerCharacter cid = do
               (gameDb ^. characterPosition)
               _characterPositionCharacterId
               c
-          cl <- oneToOne_ (gameDb ^. characterLook) _characterLookCharacterId c
+          cl <-
+            oneToOne_
+              (gameDb ^. characterLook)
+              _characterLookCharacterId
+              c
           guard_ (c ^. characterId ==. val_ cid)
-          pure (c, cp, cl)
-    build (c, cp, cl) =
-      PlayerCharacter
-        c
-        ( ActorLocation
-            (cp ^. characterPositionMapId)
-            (cp ^. characterPositionCellId)
-        )
-        cl
+          pure (c, cl, cp)
+    build (c, cl, cp) =
+      PlayerCharacter c cl cp defaultRestrictions

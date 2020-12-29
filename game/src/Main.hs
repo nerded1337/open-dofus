@@ -24,7 +24,8 @@
 
 module Main where
 
-import qualified Data.Attoparsec.ByteString.Char8 as AL
+import qualified Data.Attoparsec.ByteString.Char8 as A
+import Data.Compact
 import Data.Either
 import qualified Data.HashMap.Strict as HM
 import Database.Beam.Postgres
@@ -34,6 +35,7 @@ import OpenDofus.Core.Network.Server
 import OpenDofus.Database
 import OpenDofus.Game.Character (getCharacterList)
 import OpenDofus.Game.Map
+import OpenDofus.Game.Map.Action
 import OpenDofus.Game.Map.Actor
 import OpenDofus.Game.Map.Event
 import OpenDofus.Game.Map.Types
@@ -41,44 +43,39 @@ import OpenDofus.Game.Network.Message
 import OpenDofus.Game.Server
 import OpenDofus.Prelude
 import qualified StmContainers.Map as M
+import System.Mem (performMinorGC, performMajorGC)
 
 -- * GAME CREATION
 
 gameCreation :: Account -> PlayerCharacter -> GameHandler GameState
 gameCreation acc pc = do
-  gs <- view handlerInputServer
-  let mid = pc ^. actorLocation . actorLocationMapId
-      ctls = gs ^. gameServerMapControllers
-  case ctls ^. at mid of
+  ctls <- view (handlerInputServer . gameServerMapControllers)
+  case ctls ^. at (pc ^. playerCharacterCharacterPosition . characterPositionMapId) of
     (Just ctl) -> do
-      let mapTemplate =
-            ctl ^. mapControllerInstance . mapInstanceTemplate
-          gameDataMapMsg =
-            GameDataMap
-              (mapTemplate ^. mapId)
-              (mapTemplate ^. mapCreationDate)
-              <$> (mapTemplate ^. mapDataKey)
-      case gameDataMapMsg of
-        Just dataMapMessage -> do
-          raiseMapEvent mapTemplate $ MapEventActorSpawn $ GameActorPC pc
+      let m = ctl ^. mapControllerInstance . to getCompact . mapInstanceTemplate
+      case m ^. mapDataKey of
+        Just dataKey -> do
+          raiseMapEvent m $
+            MapEventActorSpawn
+              ( Actor
+                  ActorIdle
+                  ( ActorLocation
+                      (pc ^. playerCharacterCharacterPosition . characterPositionMapId)
+                      (pc ^. playerCharacterCharacterPosition . characterPositionCellId)
+                  )
+                  SouthEast
+                  (ActorSpecializationPC pc)
+              )
           emit GameCreationSuccess
-          emit dataMapMessage
+          emit $ GameDataMap (m ^. mapId) (m ^. mapCreationDate) dataKey
           emit GameDataSuccess
-          pure $ InGame acc pc mapTemplate
+          pure $ InGame acc (pc ^. to actorId) m
         Nothing -> do
           -- impossible as the controller is loaded only if the map is valid
-          critical $
-            "Map without key"
-              <> showText mid
-              <> ", player kicked: "
-              <> showText (pc ^. playerCharacterBaseCharacter . characterName)
           kick
           stay
     _ -> do
       -- should be impossible except if we messed with the db
-      critical $
-        "Map controller not found: "
-          <> showText mid
       kick
       stay
 
@@ -97,16 +94,16 @@ type CharacterCreationInfos =
     CharacterColor
   )
 
-parseCharacterCreationInfos :: AL.Parser CharacterCreationInfos
+parseCharacterCreationInfos :: A.Parser CharacterCreationInfos
 parseCharacterCreationInfos =
-  let dec :: (Num a, Integral a) => AL.Parser a
-      dec = AL.char '|' *> AL.signed AL.decimal
+  let dec :: (Num a, Integral a) => A.Parser a
+      dec = A.char '|' *> A.signed A.decimal
    in (,,,,,)
-        <$> (CharacterName . decodeStrictByteString <$> AL.takeTill (== '|'))
+        <$!> (CharacterName . decodeStrictByteString <$> A.takeTill (== '|'))
         <*> (BreedId <$> dec)
         <*> ( CharacterSex
-                <$> ( AL.char '|' *> do
-                        x <- AL.digit
+                <$> ( A.char '|' *> do
+                        x <- A.digit
                         case x of
                           '0' -> pure False
                           _ -> pure True
@@ -149,7 +146,7 @@ characterCreation ::
   EncodedCharacterCreationInfos ->
   GameHandler GameState
 characterCreation acc encodedCharInfos =
-  case AL.parseOnly parseCharacterCreationInfos encodedCharInfos of
+  case A.parseOnly parseCharacterCreationInfos encodedCharInfos of
     Right charInfos -> do
       creationResult <- characterCreationHandler acc charInfos
       case creationResult of
@@ -169,7 +166,7 @@ characterCreation acc encodedCharInfos =
 
 characterSelection :: Account -> EncodedCharacterId -> GameHandler GameState
 characterSelection acc encodedCharacterId =
-  case AL.parseOnly (AL.decimal @Word64) encodedCharacterId of
+  case A.parseOnly (A.decimal @Word64) encodedCharacterId of
     Right cid -> do
       loadedPc <- loadPlayerCharacter (CharacterId cid)
       case loadedPc of
@@ -179,6 +176,7 @@ characterSelection acc encodedCharacterId =
           client <- view handlerInputClient
           liftIO $ atomically $ M.insert client (pc ^. to actorId) playerActors
           emit $ CharacterSelectionSuccess pc
+          emit $ AccountRestrictions (pc ^. playerCharacterRestrictions)
           pure $ GameCreation acc pc
         Nothing -> do
           warn $ "Could not load character: id=" <> showText encodedCharacterId
@@ -233,28 +231,21 @@ loginAccount ticket = do
 
 -- * CONNECTION
 
-onClientDisconnected :: Maybe Account -> Maybe PlayerCharacter -> GameHandler GameState
-onClientDisconnected loggedAccount loggedPc = do
-  debug "Client disconnected"
-  traverse_ playerDisconnect loggedPc
-  traverse_ accountDisconnect loggedAccount
-  stay
-  where
-    playerDisconnect pc = do
-      -- TODO: trigger map event
-      debug $ "Logout player: " <> showText pc
-      playerActors <- view (handlerInputServer . gameServerPlayerActors)
-      liftIO $ atomically $ M.delete (pc ^. to actorId) playerActors
+onAccountDisconnected :: Account -> GameHandler ()
+onAccountDisconnected acc = do
+  debug $ "Logout account: " <> showText acc
+  runVolatile @AuthDbConn $
+    setAccountIsOnline (acc ^. accountId) $
+      AccountIsOnline False
 
-    accountDisconnect acc = do
-      debug $ "Logout account: " <> showText acc
-      runVolatile @AuthDbConn $
-        setAccountIsOnline (acc ^. accountId) $
-          AccountIsOnline False
+onPlayerDisconnected :: ActorId -> GameHandler ()
+onPlayerDisconnected pcId = do
+  debug $ "Logout player: " <> showText pcId
+  playerActors <- view (handlerInputServer . gameServerPlayerActors)
+  liftIO $ atomically $ M.delete pcId playerActors
 
 onClientConnected :: GameHandler GameState
 onClientConnected = do
-  debug "Client connected"
   emit HelloGame
   stay
 
@@ -264,15 +255,18 @@ stateHandler _ ClientConnected =
 stateHandler s ClientDisconnected =
   case s of
     Greeting ->
-      onClientDisconnected Nothing Nothing
-    CharacterSelection acc ->
-      onClientDisconnected (Just acc) Nothing
-    GameCreation acc pc ->
-      -- TODO: handler player character disconnection
-      onClientDisconnected (Just acc) (Just pc)
-    InGame acc pc _ ->
-      -- TODO: handler player character disconnection
-      onClientDisconnected (Just acc) (Just pc)
+      stay
+    CharacterSelection acc -> do
+      onAccountDisconnected acc
+      stay
+    GameCreation acc pc -> do
+      onAccountDisconnected acc
+      onPlayerDisconnected (pc ^. to actorId)
+      stay
+    InGame acc pcId _ -> do
+      onAccountDisconnected acc
+      onPlayerDisconnected pcId
+      stay
 stateHandler s (ClientSent packet) =
   case (s, packet) of
     (Greeting, 'A' :- 'T' :- providedTicket) ->
@@ -300,9 +294,50 @@ stateHandler s (ClientSent packet) =
           stay
     (GameCreation acc pc, 'G' :- 'C' :- _) -> do
       gameCreation acc pc
-    (InGame acc pc m, 'G' :- 'I' :- _) -> do
-      raiseMapEvent m $ MapEventDispatchInformations $ GameActorPC pc
-      pure $ InGame acc pc m
+    (InGame acc pcId m, _) ->
+      case packet of
+        'G' :- 'I' :- _ -> do
+          raiseMapEvent m $ MapEventDispatchInformations pcId
+          pure $ InGame acc pcId m
+        'G' :- 'A' :- a0 :- a1 :- a2 :- params ->
+          let actionIdText = a0 :- a1 :- a2 :- mempty
+           in case A.parseOnly (A.decimal @Word32) actionIdText of
+                Right actionId -> do
+                  raiseMapEvent m $
+                    MapEventActorActionStart
+                      pcId
+                      (EffectId actionId)
+                      params
+                  stay
+                Left err -> do
+                  debug $ "Could not decode action id: " <> showText actionIdText <> ", err: " <> showText err
+                  stay
+        'G' :- 'K' :- 'K' :- actionIdText ->
+          case A.parseOnly (A.decimal @EffectId) actionIdText of
+            Right actionId -> do
+              raiseMapEvent m $
+                MapEventActorActionAck
+                  pcId
+                  actionId
+              stay
+            Left err -> do
+              debug $ "Could not decode action id: " <> showText actionIdText <> ", err: " <> showText err
+              stay
+        'G' :- 'K' :- 'E' :- '1' :- '|' :- cellIdText ->
+          case A.parseOnly (A.decimal @CellId) cellIdText of
+            Right c -> do
+              raiseMapEvent m $
+                MapEventActorActionAbort
+                  pcId
+                  GameActionMapMovement
+                  c
+              stay
+            Left err -> do
+              debug $ "Could not decode cell id: " <> showText cellIdText <> ", err: " <> showText err
+              stay
+        _ -> do
+          debug $ "Unhandled game packet: " <> showText packet
+          stay
     (_, _) -> do
       debug $ "Unhandled packet: " <> showText packet
       stay
@@ -329,10 +364,16 @@ dispatchToHandler = writeState =<< transition =<< readStateAndMsg
     readStateAndMsg = (,) <$> readState <*> currentMsg
     currentMsg = view handlerInputMessage
 
-dispatchMessages :: M.Map ActorId GameClient -> ActorId -> [GameMessage] -> IO ()
-dispatchMessages playerActors actId msgs = do
+logMessage :: GameHandler ()
+logMessage = do
+  pure ()
+
+-- debug . showText =<< view handlerInputMessage
+
+dispatchMessage :: M.Map ActorId GameClient -> ActorId -> GameMessage -> IO ()
+dispatchMessage playerActors actId msg = do
   client <- atomically $ M.lookup actId playerActors
-  traverse_ (`sendClientMessages` msgs) client
+  traverse_ (`emitToClient` Identity msg) client
 
 app :: IO ()
 app = do
@@ -358,7 +399,13 @@ app = do
 
   debug "Creating map controllers"
   mapControllers <-
-    runMaps (dispatchMessages playerActors) mapInstances
+    runMaps (dispatchMessage playerActors) mapInstances
+
+  threadDelay 5000000
+
+  debug "Performing initial garbage collection"
+  performMinorGC
+  performMajorGC
 
   debug "Starting game server"
   server <-
@@ -369,10 +416,10 @@ app = do
       <*> pure (WorldId 614)
       <*> pure (HM.fromList $ controllerEntry <$> mapControllers)
       <*> pure playerActors
-  startServer server dispatchToHandler
+  startServer server (logMessage *> dispatchToHandler)
   where
     controllerEntry c =
-      (c ^. mapControllerInstance . mapInstanceTemplate . mapId, c)
+      (c ^. mapControllerInstance . to getCompact . mapInstanceTemplate . mapId, c)
     makeClient conn = GameClient <$> newIORef Greeting <*> pure conn
 
 main :: IO ()

@@ -48,6 +48,7 @@ dependencies:
 
 default-extensions:
   - NoImplicitPrelude 
+  - Strict
 
 library:
   source-dirs: src
@@ -57,6 +58,10 @@ library:
     - -ffun-to-thunk
     - -funbox-strict-fields
     - -feager-blackholing
+    - -fexpose-all-unfoldings
     - -fspecialise-aggressively
     - -fstatic-argument-transformation
+    - -fspec-constr-keen
+    - -flate-specialise
+    - -flate-dmd-anal
     - -O2

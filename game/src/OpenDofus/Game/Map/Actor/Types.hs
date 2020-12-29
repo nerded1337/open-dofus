@@ -30,32 +30,11 @@ module OpenDofus.Game.Map.Actor.Types
     HasActorId (..),
     ActorLocation (..),
     HasActorLocation (..),
-    ActorDirection (..),
-    HasActorDirection (..),
   )
 where
 
 import OpenDofus.Database
 import OpenDofus.Prelude
-
-data ActorDirection
-  = East
-  | SouthEast
-  | South
-  | SouthWest
-  | West
-  | NorthWest
-  | North
-  | NorthEast
-  deriving stock
-    ( Show,
-      Eq,
-      Ord,
-      Bounded,
-      Enum
-    )
-
-makeClassy ''ActorDirection
 
 newtype ActorId = ActorId
   { unActorId :: Word64

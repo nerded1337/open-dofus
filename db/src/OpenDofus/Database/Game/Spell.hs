@@ -116,6 +116,7 @@ instance Table SpellLevelT where
         !(C f Word32)
     deriving (Generic, Beamable)
   primaryKey = SpellLevelPK <$> _spellLevelSpell <*> _spellLevelLevel
+  {-# INLINE primaryKey #-}
 
 type SpellLevel = SpellLevelT Identity
 
@@ -164,6 +165,7 @@ instance Table SpellT where
   data PrimaryKey SpellT f = SpellPK !(C f SpellId)
     deriving (Generic, Beamable)
   primaryKey = SpellPK . _spellId
+  {-# INLINE primaryKey #-}
 
 type Spell = SpellT Identity
 

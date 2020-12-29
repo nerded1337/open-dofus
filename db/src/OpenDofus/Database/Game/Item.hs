@@ -166,13 +166,11 @@ data ItemSlotT f = ItemSlot
 instance Table ItemSlotT where
   data PrimaryKey ItemSlotT f
     = ItemSlotPK
-        !( PrimaryKey
-             ItemSuperTypeT
-             f
-         )
+        !(PrimaryKey ItemSuperTypeT f)
         !(C f ItemSlotId)
     deriving (Generic, Beamable)
   primaryKey = ItemSlotPK <$> _itemSlotItemType <*> _itemSlotId
+  {-# INLINE primaryKey #-}
 
 type ItemSlot = ItemSlotT Identity
 

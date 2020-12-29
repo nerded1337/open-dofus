@@ -123,12 +123,13 @@ parseCells decompressed =
     (cellSlices (nbOfCells decompressed) decompressed)
 {-# INLINE parseCells #-}
 
-parseMap :: Map -> Either String (MapInstanceT (Maybe InteractiveObjectGfxId))
+parseMap :: Map -> Either String (MapInstanceT (CellT (Maybe InteractiveObjectGfxId)))
 parseMap m = parse =<< maybe (Left "Missing data key") Right (m ^. mapDataKey)
   where
     parse =
       go . decompressMapData (m ^. mapCompressedData)
 
     go decompressedData =
-      maybe (Left "Invalid key") Right $ MapInstance m . HM.fromList <$> parseCells decompressedData
+      maybe (Left "Invalid key") Right $
+        MapInstance m . HM.fromList <$> parseCells decompressedData
 {-# INLINE parseMap #-}

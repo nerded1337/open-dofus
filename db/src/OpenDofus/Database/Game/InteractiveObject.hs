@@ -90,11 +90,11 @@ data InteractiveObjectT f = InteractiveObject
 
 instance Table InteractiveObjectT where
   data PrimaryKey InteractiveObjectT f
-    = InteractiveObjectPK
-        (C f InteractiveObjectId)
+    = InteractiveObjectPK (C f InteractiveObjectId)
     deriving stock (Generic)
     deriving anyclass (Beamable)
   primaryKey = InteractiveObjectPK . _interactiveObjectId
+  {-# INLINE primaryKey #-}
 
 type InteractiveObject = InteractiveObjectT Identity
 
@@ -152,6 +152,7 @@ instance Table InteractiveObjectGfxT where
     InteractiveObjectGfxPK
       <$> _interactiveObjectGfxId
       <*> _interactiveObjectGfxInteractiveObjectId
+  {-# INLINE primaryKey #-}
 
 type InteractiveObjectGfx = InteractiveObjectGfxT Identity
 

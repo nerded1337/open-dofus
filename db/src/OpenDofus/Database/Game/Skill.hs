@@ -67,6 +67,7 @@ instance Table SkillT where
     deriving stock (Generic)
     deriving anyclass (Beamable)
   primaryKey = SkillPK . _skillId
+  {-# INLINE primaryKey #-}
 
 type Skill = SkillT Identity
 
@@ -102,7 +103,9 @@ instance Table SkillCraftT where
         !(PrimaryKey ItemT f)
     deriving stock (Generic)
     deriving anyclass (Beamable)
-  primaryKey = SkillCraftPK <$> _skillCraftSkillId <*> _skillCraftItemId
+  primaryKey =
+    SkillCraftPK <$> _skillCraftSkillId <*> _skillCraftItemId
+  {-# INLINE primaryKey #-}
 
 type SkillCraft = SkillCraftT Identity
 

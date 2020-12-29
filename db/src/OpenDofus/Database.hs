@@ -121,7 +121,7 @@ populateGameDb path = do
     traverse_
       ( \(b, bc, bs) -> do
           runInsert $ insert (gameDb ^. breed) $ insertValues [b]
-          runInsert $ insert (gameDb ^. breedCost) $ insertValues $ toList bc
+          runInsert $ insert (gameDb ^. breedCaracteristicCost) $ insertValues $ toList bc
           runInsert $ insert (gameDb ^. breedSpell) $ insertValues $ toList bs
       )
       bds

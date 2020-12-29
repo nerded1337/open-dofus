@@ -23,7 +23,6 @@ jobs:
         with:
           path: |
             ~/.stack
-            .stack-work
           key: ${{ matrix.os }}-1
       - name: Build
         run: |

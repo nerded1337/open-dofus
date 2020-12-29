@@ -146,10 +146,12 @@ zoneFromPattern x =
       getShape 'D' = UnknownD
       getShape s = error $ "Invalid zone shape: " <> show s
    in case x of
-        (shape :- ('_' :- xs)) -> (EffectZone (getShape shape) Infinite, xs)
+        (shape :- ('_' :- xs)) ->
+          (EffectZone (getShape shape) Infinite, xs)
         (shape :- (s :- xs)) ->
           (EffectZone (getShape shape) (Finite $ idx s), xs)
-        _ -> error $ "Invalid Effect Zone: " <> show x
+        _ ->
+          error $ "Invalid Effect Zone: " <> show x
 
 data EffectT f = Effect
   { _effectId :: !(C f EffectId),
@@ -166,6 +168,7 @@ instance Table EffectT where
   data PrimaryKey EffectT f = EffectPK !(C f EffectId)
     deriving (Generic, Beamable)
   primaryKey = EffectPK . _effectId
+  {-# INLINE primaryKey #-}
 
 type EffectPK = PrimaryKey EffectT Identity
 

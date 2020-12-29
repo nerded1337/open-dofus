@@ -32,7 +32,7 @@ import OpenDofus.Core.Network.Types (HasNetworkId (..), NetworkId)
 import OpenDofus.Prelude
 
 data ClientConnection = ClientConnection
-  { _clientConnectionSocket :: {-# UNPACK #-} !Socket,
+  { _clientConnectionSocket :: {-# UNPACK #-} !Handle,
     _clientConnectionNetworkId :: {-# UNPACK #-} !NetworkId,
     _clientConnectionIp :: !SockAddr
   }
