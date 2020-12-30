@@ -23,13 +23,13 @@
 
 module OpenDofus.Game.Map.Action
   ( EffectId (..),
-    pattern GameActionMapMovement,
+    pattern EffectActionMapMovement,
   )
 where
 
 import OpenDofus.Database
 
-pattern GameActionMapMovement :: EffectId
-pattern GameActionMapMovement <- EffectId 1
+pattern EffectActionMapMovement :: EffectId
+pattern EffectActionMapMovement <- EffectId 1
   where
-    GameActionMapMovement = EffectId 1
+    EffectActionMapMovement = EffectId 1

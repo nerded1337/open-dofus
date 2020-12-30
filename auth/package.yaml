@@ -39,6 +39,7 @@ dependencies:
 
 default-extensions:
   - NoImplicitPrelude 
+  - Strict
 
 executables:
   open-dofus-auth:
@@ -51,7 +52,6 @@ executables:
       - -ffun-to-thunk
       - -funbox-strict-fields
       - -feager-blackholing
-      - -fexpose-all-unfoldings
       - -fspecialise-aggressively
       - -fstatic-argument-transformation
       - -fspec-constr-keen
@@ -59,4 +59,4 @@ executables:
       - -flate-dmd-anal
       - -O2
       - -rtsopts
-      - "\"-with-rtsopts=-N -H64m -A64m -AL64m -Iw60 -qn8 -S\""
+      - "\"-with-rtsopts=-N -H128m -A64m -AL64m -I0 -S -xn\""

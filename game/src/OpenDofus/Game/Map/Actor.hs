@@ -38,6 +38,7 @@ module OpenDofus.Game.Map.Actor
     HasActorState (..),
     ActorAction (..),
     HasActorAction (..),
+    isPlayerActor,
     loadPlayerCharacter,
   )
 where
@@ -100,6 +101,13 @@ instance HasActorLocation Actor where
 instance HasDirection Actor where
   direction = gameActorDirection
   {-# INLINE direction #-}
+
+isPlayerActor :: Actor -> Bool
+isPlayerActor a =
+  case a ^. gameActorSpecialization of
+    ActorSpecializationPC _ -> True
+    _ -> False
+{-# INLINE isPlayerActor #-}
 
 loadPlayerCharacter ::
   (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m) =>

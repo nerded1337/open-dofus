@@ -41,6 +41,8 @@ module OpenDofus.Game.Server
   )
 where
 
+import Data.Compact
+import qualified Data.HashTable.IO as H
 import OpenDofus.Core.Network.Client
   ( ClientConnection,
     HasClientConnection (clientConnection),
@@ -60,24 +62,31 @@ import OpenDofus.Database
     AuthDbConn (AuthDbConn),
     GameDbConn (GameDbConn),
     HasConnectPool (..),
-    Map,
     MapId,
+    MapSubAreaId,
     Pool,
     WorldId,
   )
 import OpenDofus.Game.Map.Actor
 import OpenDofus.Game.Map.Types
-  ( MapController,
+  (MapEventChannels,  MapController,
   )
 import OpenDofus.Game.Network.Message
 import OpenDofus.Prelude
 import qualified StmContainers.Map as M
 
+type HashTable k v = H.BasicHashTable k v
+
 data GameState
   = Greeting
-  | CharacterSelection !Account
-  | GameCreation !Account !PlayerCharacter
-  | InGame !Account !ActorId !Map
+  | CharacterSelection
+      {-# UNPACK #-} !Account
+  | GameCreation
+      {-# UNPACK #-} !Account
+      {-# UNPACK #-} !PlayerCharacter
+  | InGame
+      {-# UNPACK #-} !Account
+      {-# UNPACK #-} !ActorId
 
 makePrisms ''GameState
 
@@ -96,8 +105,11 @@ data GameServer = GameServer
     _gameServerAuthDbPool :: {-# UNPACK #-} !(Pool AuthDbConn),
     _gameServerGameDbPool :: {-# UNPACK #-} !(Pool GameDbConn),
     _gameServerWorldId :: {-# UNPACK #-} !WorldId,
-    _gameServerMapControllers :: !(HashMap MapId MapController),
-    _gameServerPlayerActors :: {-# UNPACK #-} !(M.Map ActorId GameClient)
+    _gameServerMapControllers :: {-# UNPACK #-}!(HashTable MapId MapController),
+    _gameServerMapChannels :: {-# UNPACK #-}!(HashTable MapId MapEventChannels),
+    _gameServerPlayerToClient :: {-# UNPACK #-} !(M.Map ActorId GameClient),
+    _gameServerPlayerToMap :: {-# UNPACK #-} !(M.Map ActorId MapId),
+    _gameServerCompact :: {-# UNPACK #-} !(Compact ())
   }
 
 makeClassy ''GameServer

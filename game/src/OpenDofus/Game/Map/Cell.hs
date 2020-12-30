@@ -38,9 +38,9 @@ module OpenDofus.Game.Map.Cell
   )
 where
 
-import Data.Fixed
 import Data.Bits
 import qualified Data.ByteString as BS
+import Data.Fixed
 import Linear.V2
 import OpenDofus.Core.Data.Constructible
 import OpenDofus.Database
@@ -51,7 +51,7 @@ import OpenDofus.Prelude
 type CellPoint = V2 Int32
 
 cellDiag :: Double
-cellDiag = 29.74
+cellDiag = 29.75
 {-# INLINE cellDiag #-}
 
 cellHeight :: Double
@@ -94,32 +94,33 @@ prepareCellData = BS.foldr' go (Just [])
 parseCell ::
   CellId ->
   ByteString ->
-  Maybe (CellId, CellT (Maybe InteractiveObjectGfxId))
+  Maybe (CellId, Compose CellT Maybe InteractiveObjectGfxId)
 parseCell cid = go <=< prepareCellData
   where
     go (a :- b :- c :- d :- e :- f :- g :- h :- i :- j :- _) =
       Just
         ( cid,
-          Cell
-            cid
-            active
-            los
-            lgr
-            gl
-            m
-            lgn
-            gs
-            lgf
-            lo1n
-            lo1r
-            lo1f
-            lo2f
-            lo2i
-            lo2n
-            ( if lo2i > 0
-                then Just (InteractiveObjectGfxId $ fromIntegral lo2n)
-                else Nothing
-            )
+          Compose $
+            Cell
+              cid
+              active
+              los
+              lgr
+              gl
+              m
+              lgn
+              gs
+              lgf
+              lo1n
+              lo1r
+              lo1f
+              lo2f
+              lo2i
+              lo2n
+              ( if lo2i > 0
+                  then Just (InteractiveObjectGfxId $ fromIntegral lo2n)
+                  else Nothing
+              )
         )
       where
         conv = fromIntegral @_ @Word16

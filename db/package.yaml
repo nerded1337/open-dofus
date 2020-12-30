@@ -58,7 +58,6 @@ library:
     - -ffun-to-thunk
     - -funbox-strict-fields
     - -feager-blackholing
-    - -fexpose-all-unfoldings
     - -fspecialise-aggressively
     - -fstatic-argument-transformation
     - -fspec-constr-keen

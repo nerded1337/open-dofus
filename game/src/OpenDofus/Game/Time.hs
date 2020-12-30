@@ -34,7 +34,7 @@ where
 
 import OpenDofus.Prelude
 import Time as T
-import qualified Chronos as C
+import GHC.Clock
 
 type GameTime unit = Time unit
 
@@ -42,7 +42,7 @@ gameCurrentTime
   :: forall (unit :: Rat) m. (KnownDivRat Nanosecond unit, MonadIO m)
   => m (GameTime unit)
 gameCurrentTime =
-  toUnit . ns . fromIntegral . C.getTime <$> liftIO C.now
+  toUnit . ns . fromIntegral <$> liftIO getMonotonicTimeNSec
 
 gameDelay
   :: (KnownDivRat unit Microsecond, MonadIO m)

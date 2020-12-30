@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -49,8 +48,8 @@ prepareKey (MapDataKey key) =
           (Nothing, mempty)
           key
   where
-    step (Nothing, !o) !c = (Just c, o)
-    step (Just !c, !o) !c' = (Nothing, o <> T.singleton (toEnum hex))
+    step (Nothing, o) c = (Just c, o)
+    step (Just c, o) c' = (Nothing, o <> T.singleton (toEnum hex))
       where
         hex =
           fst $
@@ -68,7 +67,7 @@ keyChecksum (MapDataKey key) = final `mod` 16
 {-# INLINE keyChecksum #-}
 
 decompressMapData :: MapCompressedData -> MapDataKey -> ByteString
-decompressMapData !dat !key =
+decompressMapData dat key =
   extract $
     T.foldl' step initialState (unMapCompressedData dat)
   where
@@ -76,8 +75,8 @@ decompressMapData !dat !key =
     keyShift = keyChecksum preparedKey * 2
     keyLength = T.length (unMapDataKey preparedKey)
     initialState = (Nothing, 0, mempty)
-    step (Nothing, !i, !o) !c = (Just c, i, o)
-    step (Just !c, !i, !o) !c' = (Nothing, i + 1, o <> o')
+    step (Nothing, i, o) c = (Just c, i, o)
+    step (Just c, i, o) c' = (Nothing, i + 1, o <> o')
       where
         dataHex =
           fst $
@@ -88,7 +87,7 @@ decompressMapData !dat !key =
         keyCode =
           T.index (unMapDataKey preparedKey) ((i + keyShift) `mod` keyLength)
         o' = T.singleton $ toEnum $ dataHex `xor` fromEnum keyCode
-    extract (_, _, !o) = encodeTextStrict $ URI.decodeText o
+    extract (_, _, o) = encodeTextStrict $ URI.decodeText o
 {-# INLINE decompressMapData #-}
 
 compressedCellSize :: Int
@@ -116,14 +115,18 @@ cellSlices cells =
   sequenceA $ bitraverse pure id <$> cellGenerator cells
 {-# INLINE cellSlices #-}
 
-parseCells :: ByteString -> Maybe [(CellId, CellT (Maybe InteractiveObjectGfxId))]
+parseCells ::
+  ByteString ->
+  Maybe [(CellId, Compose CellT Maybe InteractiveObjectGfxId)]
 parseCells decompressed =
   traverse
     (uncurry parseCell)
     (cellSlices (nbOfCells decompressed) decompressed)
 {-# INLINE parseCells #-}
 
-parseMap :: Map -> Either String (MapInstanceT (CellT (Maybe InteractiveObjectGfxId)))
+parseMap ::
+  Map ->
+  Either String (MapInstanceT (Compose CellT Maybe InteractiveObjectGfxId))
 parseMap m = parse =<< maybe (Left "Missing data key") Right (m ^. mapDataKey)
   where
     parse =

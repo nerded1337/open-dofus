@@ -41,10 +41,12 @@ module OpenDofus.Game.Map.Types
     MapController,
     MapControllerT (..),
     HasMapControllerT (..),
+    MapEventChannels (..),
+    HasMapEventChannels (..)
   )
 where
 
-import Data.Compact
+import Control.Concurrent.Chan.Unagi.NoBlocking
 import Data.HashMap.Strict as HM
 import qualified Data.HashTable.IO as H
 import OpenDofus.Database
@@ -56,9 +58,9 @@ import OpenDofus.Game.Map.Interactive
 import OpenDofus.Game.Network.Message
 import OpenDofus.Prelude
 
-type HashTable k v = H.CuckooHashTable k v
+type HashTable k v = H.BasicHashTable k v
 
-type MapInstance = MapInstanceT (CellT (Maybe InteractiveObject))
+type MapInstance = MapInstanceT (Compose CellT Maybe InteractiveObject)
 
 data MapInstanceT a = MapInstance
   { _mapInstanceTemplate :: {-# UNPACK #-} !Map,
@@ -68,10 +70,10 @@ data MapInstanceT a = MapInstance
 
 makeClassy ''MapInstanceT
 
-type MapController = MapControllerT IO (CellT (Maybe InteractiveObject))
+type MapController = MapControllerT IO (Compose CellT Maybe InteractiveObject)
 
 data MapControllerT m a = MapController
-  { _mapControllerInstance :: {-# UNPACK #-} !(Compact (MapInstanceT a)),
+  { _mapControllerInstance :: {-# UNPACK #-} !(MapInstanceT a),
     _mapControllerActors :: {-# UNPACK #-} !(HashTable ActorId Actor),
     _mapControllerInteractiveObjectInstances :: {-# UNPACK #-} !(HashTable CellId InteractiveObjectInstance),
     _mapControllerDispatch :: !(ActorId -> GameMessage -> m ())
@@ -82,9 +84,9 @@ makeClassy ''MapControllerT
 type MapEventReader m = MonadReader MapEventArgs m
 
 data MapEventArgs = MapEventArgs
-  { _mapEventArgsEvent :: !MapEvent,
-    _mapEventArgsCtl :: !MapController,
-    _mapEventElapsed :: !(GameTime Millisecond)
+  { _mapEventArgsCtl :: {-# UNPACK #-} !MapController,
+    _mapEventArgsElapsed :: {-# UNPACK #-} !(GameTime Millisecond),
+    _mapEventArgsEvent :: !MapEvent
   }
 
 makeClassy ''MapEventArgs
@@ -98,3 +100,10 @@ data MapEventDispatch = MapEventDispatch
   }
 
 makeClassy ''MapEventDispatch
+
+data MapEventChannels = MapEventChannels
+  { _mapEventChannelsIn :: {-# UNPACK #-} !(InChan MapEvent)
+  , _mapEventChannelsOut :: {-# UNPACK #-} !(OutChan MapEvent)
+  }
+
+makeClassy ''MapEventChannels

@@ -23,7 +23,7 @@
 
 module OpenDofus.Game.Map.Event
   ( MapEvent (..),
-    ActionStartParams,
+    EffectParams,
   )
 where
 
@@ -33,7 +33,7 @@ import OpenDofus.Database.Game.Map
 import OpenDofus.Game.Map.Actor
 import OpenDofus.Prelude
 
-type ActionStartParams = ByteString
+type EffectParams = ByteString
 
 data MapEvent
   = MapEventActorSpawn
@@ -45,12 +45,12 @@ data MapEvent
   | MapEventActorActionStart
       {-# UNPACK #-} !ActorId
       {-# UNPACK #-} !EffectId
-      {-# UNPACK #-} !ActionStartParams
+      {-# UNPACK #-} !EffectParams
   | MapEventActorActionAck
       {-# UNPACK #-} !ActorId
       {-# UNPACK #-} !EffectId
   | MapEventActorActionAbort
       {-# UNPACK #-} !ActorId
-      {-# UNPACK #-} !EffectId
       {-# UNPACK #-} !CellId
+  | MapEventNoOperation
   deriving stock (Show)

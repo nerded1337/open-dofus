@@ -28,7 +28,6 @@ dependencies:
 - linear
 - aeson
 - o-clock
-- chronos
 - mtl
 - dlist
 - primitive
@@ -62,12 +61,9 @@ executables:
       - -ffun-to-thunk
       - -funbox-strict-fields
       - -feager-blackholing
-      - -fexpose-all-unfoldings
       - -fspecialise-aggressively
       - -fstatic-argument-transformation
-      - -fspec-constr-keen
-      - -flate-specialise
       - -flate-dmd-anal
       - -O2
       - -rtsopts
-      - "\"-with-rtsopts=-N -H1024m -A128m -AL128m -Iw300 -qn8 -xn -S\""
+      - "\"-with-rtsopts=-N -H2048m -A128m -AL128m -I0 -S -xn\""
