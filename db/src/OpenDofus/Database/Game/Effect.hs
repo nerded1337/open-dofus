@@ -1,3 +1,5 @@
+{-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
@@ -45,6 +47,7 @@ import Database.PostgreSQL.Simple.ToField
 import OpenDofus.Core.Data.Constructible
 import OpenDofus.Database.Types
 import OpenDofus.Prelude
+import Data.Vector.Primitive (Prim)
 
 newtype EffectId = EffectId
   { unEffectId :: Word32
@@ -57,6 +60,9 @@ newtype EffectId = EffectId
       Real,
       Enum,
       Integral,
+      Prim,
+      Storable,
+      Hashable,
       HasDefaultSqlDataType Postgres,
       HasSqlValueSyntax PgValueSyntax
     )

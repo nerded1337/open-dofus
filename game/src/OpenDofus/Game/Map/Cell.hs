@@ -72,19 +72,20 @@ cellHalfWidth = cellWidth / 2
 
 cellToChar :: CellId -> Maybe (Word8, Word8)
 cellToChar (CellId x) =
-  (,) <$!> encode64 (x `quot` 64) <*> encode64 (x `mod` 64)
+  (,) <$!> encode64 (fromIntegral $ x `quot` 64)
+    <*> encode64 (fromIntegral $ x `mod` 64)
 {-# INLINE cellToChar #-}
 
 cellFromChar :: Word8 -> Word8 -> Maybe CellId
 cellFromChar c1 c2 =
   case (decode64 c1, decode64 c2) of
     (Just i1, Just i2) ->
-      Just $ CellId $ fromIntegral i1 * 64 + i2
+      Just $ CellId $ fromIntegral i1 * 64 + fromIntegral i2
     _ ->
       Nothing
 {-# INLINE cellFromChar #-}
 
-prepareCellData :: BS.ByteString -> Maybe [Word32]
+prepareCellData :: BS.ByteString -> Maybe [Word8]
 prepareCellData = BS.foldr' go (Just [])
   where
     go _ Nothing = Nothing

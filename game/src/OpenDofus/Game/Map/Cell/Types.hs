@@ -114,7 +114,7 @@ pattern CellMovementTypeWalkableFast <-
   where
     CellMovementTypeWalkableFast = 7
 
-cellMovementType :: Word32 -> CellMovementType
+cellMovementType :: Word8 -> CellMovementType
 cellMovementType 0 = CellMovementTypeNonWalkable
 cellMovementType 1 = CellMovementTypeDoor
 cellMovementType 2 = CellMovementTypeTrigger

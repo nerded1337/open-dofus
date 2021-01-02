@@ -31,7 +31,7 @@ import qualified Data.ByteString as BS
 import qualified Data.HashMap.Strict as HM
 import OpenDofus.Prelude
 
-decodeHash :: HM.HashMap Word8 Word32
+decodeHash :: HM.HashMap Word8 Word8
 decodeHash =
   HM.fromList $
     zip
@@ -39,7 +39,7 @@ decodeHash =
       [0 ..]
 {-# INLINE decodeHash #-}
 
-encodeHash :: HM.HashMap Word32 Word8
+encodeHash :: HM.HashMap Word8 Word8
 encodeHash =
   HM.fromList $
     zip
@@ -47,10 +47,10 @@ encodeHash =
       (BS.unpack "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
 {-# INLINE encodeHash #-}
 
-encode64 :: Word32 -> Maybe Word8
+encode64 :: Word8 -> Maybe Word8
 encode64 = flip HM.lookup encodeHash
 {-# INLINE encode64 #-}
 
-decode64 :: Word8 -> Maybe Word32
+decode64 :: Word8 -> Maybe Word8
 decode64 = flip HM.lookup decodeHash
 {-# INLINE decode64 #-}

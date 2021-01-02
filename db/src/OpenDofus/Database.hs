@@ -46,6 +46,8 @@ module OpenDofus.Database
     getMaps,
     getMapById,
     getInteractiveObjectByGfxId,
+    isAccountCharacter,
+    getCharacterPosition,
   )
 where
 
@@ -294,6 +296,26 @@ getCharacterByName cn = GameQuery query
         c <- all_ (gameDb ^. character)
         guard_ (c ^. characterName ==. val_ cn)
         pure c
+
+getCharacterPosition :: CharacterId -> GameQuery (Maybe CharacterPosition)
+getCharacterPosition cid = GameQuery query
+  where
+    query = runSelectReturningOne $
+      select $ do
+        c <- all_ (gameDb ^. characterPosition)
+        guard_ (c ^. characterPositionCharacterId ==. val_ cid)
+        pure c
+
+isAccountCharacter :: AccountId -> CharacterId -> GameQuery Bool
+isAccountCharacter aid cid = GameQuery query
+  where
+    query = fmap isJust $
+      runSelectReturningOne $
+        select $ do
+          c <- all_ (gameDb ^. character)
+          guard_ (c ^. characterId ==. val_ cid)
+          guard_ (c ^. characterAccountId ==. val_ aid)
+          pure c
 
 createNewCharacter ::
   AccountId ->

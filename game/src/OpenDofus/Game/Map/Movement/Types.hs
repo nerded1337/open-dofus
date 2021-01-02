@@ -51,7 +51,13 @@ data MovementStep a = MovementStep
   { _movementStepPoint :: !a,
     _movementStepDirection :: !Direction
   }
-  deriving stock (Show, Eq, Functor, Foldable, Traversable)
+  deriving stock
+    ( Show,
+      Eq,
+      Functor,
+      Foldable,
+      Traversable
+    )
 
 makeClassy ''MovementStep
 
@@ -59,7 +65,11 @@ data MovementPath a = MovementPath
   { _movementPathCompressed :: {-# UNPACK #-} !ByteString,
     _movementPathSteps :: {-# UNPACK #-} !(DL.DNonEmpty (MovementStep a))
   }
-  deriving stock (Show, Eq, Functor, Foldable)
+  deriving stock
+    ( Show,
+      Eq,
+      Functor,
+      Foldable
+    )
 
 makeClassy ''MovementPath
-

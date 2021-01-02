@@ -53,7 +53,6 @@ import Control.Monad.Writer.Strict (execWriterT)
 import qualified Data.ByteString.Lazy.Builder as LBS
 import qualified Data.DList as DL
 import qualified Network.Socket as SK
-import OpenDofus.Core.Application
 import OpenDofus.Core.Data.Constructible
 import OpenDofus.Core.Network.Client
   ( ClientConnection (ClientConnection),
@@ -112,7 +111,7 @@ startServer server clientHandler = do
 
     createConnection sock = liftIO $ do
       -- The socket is done once we have converted it to a Handle
-      !peer <- SK.getPeerName sock
+      peer <- SK.getPeerName sock
       ClientConnection
         <$> SK.socketToHandle sock ReadWriteMode
         <*> createNetworkId
@@ -138,7 +137,7 @@ clientStream server clientHandler conn =
     arrayToBS 10 xs = xs
     arrayToBS x xs = w2c x :- xs
     onClientSent =
-      let !sk = conn ^. clientConnectionSocket
+      let sk = conn ^. clientConnectionSocket
        in S.finally (liftIO $ hClose sk) $
             S.unfold FS.readChunksWithBufferOf (defaultRcvBuffSize, sk)
               & AS.splitOn 0
@@ -152,11 +151,11 @@ clientLoop ::
   SS.Tuple' ClientConnection ClientMessage ->
   m ()
 clientLoop srv clientHandler (SS.Tuple' cc msg) = do
-  let !netId = cc ^. networkId
-      !clients = srv ^. serverState . serverStateClients
+  let netId = cc ^. networkId
+      clients = srv ^. serverState . serverStateClients
   client <- fmap (fromMaybe (error "impossible")) $ case msg of
     ClientConnected -> do
-      !client <- (srv ^. serverStateMakeClient) cc
+      client <- (srv ^. serverStateMakeClient) cc
       liftIO $ atomically $ M.insert client netId clients
       pure $ Just client
     ClientDisconnected ->

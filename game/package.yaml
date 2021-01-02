@@ -21,8 +21,10 @@ dependencies:
 - stm-containers
 - containers
 - unordered-containers
+- multi-containers
 - hashtables
 - vector
+- fixed-vector
 - directory
 - lens
 - linear

@@ -113,9 +113,10 @@ loadPlayerCharacter ::
   (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m) =>
   CharacterId ->
   m (Maybe PlayerCharacter)
-loadPlayerCharacter = (fmap . fmap) build . runSerializable @GameDbConn . query
+loadPlayerCharacter cid =
+  getCompose $ fmap build $ Compose $ runVolatile @GameDbConn query
   where
-    query cid = GameQuery $
+    query = GameQuery $
       runSelectReturningOne $
         select $ do
           c <- all_ (gameDb ^. character)

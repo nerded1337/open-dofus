@@ -224,8 +224,10 @@ stateHandler (LoggingIn salt) (ClientSent credentials) =
   onLogin salt credentials
 stateHandler (LoggedIn acc worlds) (ClientSent packet) =
   case packet of
-    ('A' :- 'x' :- _) -> onCharactersList acc worlds
-    ('A' :- 'X' :- selectedWorldId) -> onWorldSelection acc worlds selectedWorldId
+    ('A' :- 'x' :- _) ->
+      onCharactersList acc worlds
+    ('A' :- 'X' :- selectedWorldId) ->
+      onWorldSelection acc worlds selectedWorldId
     _ -> stay
 stateHandler Kicked _ = do
   kick
@@ -237,13 +239,13 @@ writeState :: AuthState -> AuthHandler ()
 writeState s = write =<< cell
   where
     write = liftIO . flip writeIORef s
-    cell = view (handlerInputClient . authClientState)
+    cell = view $ handlerInputClient . authClientState
 
 readState :: AuthHandler AuthState
 readState = read =<< cell
   where
     read = liftIO . readIORef
-    cell = view (handlerInputClient . authClientState)
+    cell = view $ handlerInputClient . authClientState
 
 stay :: AuthHandler AuthState
 stay = readState

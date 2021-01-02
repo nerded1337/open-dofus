@@ -45,7 +45,8 @@ data CharacterCreationFailureReason
   | CharacterCreationFailureReasonInvalidInfos
 
 data GameMessage
-  = FullySerialized Builder
+  = FullySerialized
+      {-# UNPACK #-} !Builder
   | HelloGame
   | AccountTicketIsInvalid
   | AccountTicketIsValid
@@ -77,9 +78,11 @@ data GameMessage
       {-# UNPACK #-} !ActorId
       {-# UNPACK #-} !ByteString
   | BasicNoOperation
+  | NoMessage
 
 instance ToNetwork GameMessage where
   toNetwork (FullySerialized x) = x
+  toNetwork NoMessage = mempty
   toNetwork HelloGame = "HG"
   toNetwork AccountTicketIsInvalid = "ATE"
   toNetwork AccountTicketIsValid = "ATK0"
@@ -152,6 +155,19 @@ instance ToNetwork GameMessage where
       <> ";"
       <> byteString params
   {-# INLINE toNetwork #-}
+
+instance Semigroup GameMessage where
+  NoMessage <> y = y
+  x <> NoMessage = x
+  x <> y =
+    FullySerialized $
+      toNetwork x
+        <> word8 0
+        <> toNetwork y
+        <> word8 0
+
+instance Monoid GameMessage where
+  mempty = NoMessage
 
 newtype ToMapActorSpawn = ToMapActorSpawn Actor
 

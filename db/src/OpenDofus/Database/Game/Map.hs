@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
@@ -6,6 +7,7 @@
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 
 -- Map.hs ---
@@ -29,6 +31,7 @@
 
 module OpenDofus.Database.Game.Map where
 
+import Data.Vector.Primitive (Prim)
 import Database.Beam
 import Database.Beam.Backend
 import Database.Beam.Migrate
@@ -47,6 +50,8 @@ newtype CellId = CellId
       Real,
       Enum,
       Integral,
+      Prim,
+      Storable,
       Hashable,
       FromBackendRow Postgres
     )

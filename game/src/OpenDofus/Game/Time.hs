@@ -38,14 +38,13 @@ import GHC.Clock
 
 type GameTime unit = Time unit
 
-gameCurrentTime
-  :: forall (unit :: Rat) m. (KnownDivRat Nanosecond unit, MonadIO m)
-  => m (GameTime unit)
+gameCurrentTime :: MonadIO m => m (GameTime Millisecond)
 gameCurrentTime =
   toUnit . ns . fromIntegral <$> liftIO getMonotonicTimeNSec
+{-# INLINE gameCurrentTime #-}
+{-# SPECIALIZE INLINE gameCurrentTime :: IO (GameTime Millisecond) #-}
 
-gameDelay
-  :: (KnownDivRat unit Microsecond, MonadIO m)
-  => GameTime unit
-  -> m ()
+gameDelay :: MonadIO m => GameTime Millisecond -> m ()
 gameDelay = T.threadDelay
+{-# INLINE gameDelay #-}
+{-# SPECIALIZE INLINE gameDelay :: GameTime Millisecond -> IO () #-}

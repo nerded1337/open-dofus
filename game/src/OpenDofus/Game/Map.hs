@@ -1,10 +1,13 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 
 -- Map.hs ---
 
@@ -33,18 +36,19 @@ module OpenDofus.Game.Map
 where
 
 import Control.Concurrent (forkIO)
-import Control.Concurrent.Chan.Unagi.NoBlocking as U
-import Data.ByteString.Builder
+import Control.Concurrent.Chan.Unagi.NoBlocking.Unboxed as U
+import Control.Monad.Writer.Strict
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashTable.IO as H
 import Data.List
 import Data.Ratio
 import OpenDofus.Core.Application
-import OpenDofus.Core.Network.Client
+import OpenDofus.Core.Data.Record
 import OpenDofus.Database
 import OpenDofus.Game.Map.Action
 import OpenDofus.Game.Map.Actor
 import OpenDofus.Game.Map.Cell
+import OpenDofus.Game.Map.Controller
 import OpenDofus.Game.Map.Event
 import OpenDofus.Game.Map.Interactive
 import OpenDofus.Game.Map.Parser as X
@@ -52,6 +56,8 @@ import OpenDofus.Game.Map.Types
 import OpenDofus.Game.Network.Message
 import OpenDofus.Game.Time hiding (threadDelay)
 import OpenDofus.Prelude
+
+type HashTable k v = H.BasicHashTable k v
 
 createMapInstance ::
   (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m) =>
@@ -78,28 +84,32 @@ createMapInstance m = case parseMap m of
 
 createMapController ::
   MonadIO m =>
+  Pool AuthDbConn ->
+  Pool GameDbConn ->
   (ActorId -> GameMessage -> IO ()) ->
   MapInstance ->
   m MapController
-createMapController f m = liftIO $ do
+createMapController authPool gamePool dispatch m = liftIO $ do
   actors <- H.new
   ioInstances <-
     H.fromListWithSizeHint
       (HM.size $ m ^. mapInstanceCells)
       ((ioInstanceEntry . getCompose <$> m) ^. mapInstanceCells . to HM.elems)
-  pure $ MapController m actors ioInstances f
+  pure $ MapController m actors ioInstances authPool gamePool dispatch
   where
     ioInstanceEntry c = (c ^. cellId, InteractiveObjectInstance)
 
 runMaps ::
   MonadIO m =>
   HashTable MapId MapEventChannels ->
+  Pool AuthDbConn ->
+  Pool GameDbConn ->
   (ActorId -> GameMessage -> IO ()) ->
   [MapInstance] ->
   m [MapController]
-runMaps mapChannels f m = do
+runMaps mapChannels auhPooq gamePool dispatch m = do
   liftIO $ debug $ "Number of maps to run: " <> showText (length m)
-  traverse (runController <=< createMapController f) m
+  traverse (runController <=< createMapController auhPooq gamePool dispatch) m
   where
     runController mc = liftIO $ do
       let mid = mc ^. mapControllerInstance . mapInstanceTemplate . mapId
@@ -109,36 +119,44 @@ runMaps mapChannels f m = do
       pure mc
 
 runMapWorker :: MapController -> OutChan MapEvent -> IO ()
-runMapWorker m s = do
-  currentTime <- gameCurrentTime @Millisecond
+runMapWorker ctl s = do
+  currentTime <- gameCurrentTime
   [stream] <- streamChan 1 s
   go currentTime stream
   where
     go :: GameTime Millisecond -> Stream MapEvent -> IO ()
     go lastUpdate eventStream = do
-      beginUpdateTime <- gameCurrentTime @Millisecond
+      beginUpdateTime <- gameCurrentTime
       events <- tryReadNext eventStream
       eventStream' <- case events of
         Next event eventStreamNext -> do
-          runReaderT applyMapEvent $
-            MapEventArgs
-              m
-              (beginUpdateTime -:- lastUpdate)
-              event
+          broadcastMsgs :<*>: MessageMap targetedMsgs <-
+            execWriterT $
+              runReaderT applyMapEvent $
+                MapHandlerInput
+                  ctl
+                  (beginUpdateTime -:- lastUpdate)
+                  event
+          dispatchToActors ctl broadcastMsgs
+          HM.foldMapWithKey (dispatchToActor ctl) targetedMsgs
           pure eventStreamNext
         Pending -> do
           pure eventStream
       hasPlayer <-
-        runReaderT
-          (anyOf folded isPlayerActor <$> readActors)
-          (MapEventArgs m (ms 0) MapEventNoOperation)
-      endUpdateTime <- gameCurrentTime @Millisecond
+        H.foldM
+          (\x (_, a) -> pure (x || isPlayerActor a))
+          False
+          (ctl ^. mapControllerActors)
+      endUpdateTime <- gameCurrentTime
       let updateTime = endUpdateTime -:- beginUpdateTime
           -- ticks per seconds
           maximumUpdateTime =
-            ms (1000 % if hasPlayer
-                         then 128
-                         else 2)
+            ms
+              ( 1000
+                  % if hasPlayer
+                    then 128
+                    else 1
+              )
       if updateTime > maximumUpdateTime
         then
           debug $
@@ -148,81 +166,86 @@ runMapWorker m s = do
         else gameDelay $ maximumUpdateTime -:- updateTime
       go beginUpdateTime eventStream'
 
-readMapInstance :: (MonadIO m, MapEventReader m) => m MapInstance
+readMapInstance :: MapHandler MapInstance
 readMapInstance =
-  view (mapEventArgsCtl . mapControllerInstance)
+  view $ mapHandlerInputCtl . mapControllerInstance
 {-# INLINE readMapInstance #-}
 
-readMapTemplate :: (MonadIO m, MapEventReader m) => m Map
+readMapTemplate :: MapHandler Map
 readMapTemplate =
   view mapInstanceTemplate <$> readMapInstance
 {-# INLINE readMapTemplate #-}
 
-readActor :: (MonadIO m, MapEventReader m) => ActorId -> m (Maybe Actor)
+readActor :: ActorId -> MapHandler (Maybe Actor)
 readActor aid = extract =<< actors
   where
     extract = liftIO . flip H.lookup aid
-    actors = view (mapEventArgsCtl . mapControllerActors)
+    actors = view $ mapHandlerInputCtl . mapControllerActors
 {-# INLINE readActor #-}
 
-readActors :: (MonadIO m, MapEventReader m) => m [Actor]
+readActors :: MapHandler [Actor]
 readActors = extract =<< actors
   where
     extract = liftIO . (fmap . fmap) snd . H.toList
-    actors = view (mapEventArgsCtl . mapControllerActors)
+    actors = view $ mapHandlerInputCtl . mapControllerActors
 {-# INLINE readActors #-}
 
-dispatchToActor ::
-  (MonadIO m, MapEventReader m) =>
-  ActorId ->
-  GameMessage ->
-  m ()
-dispatchToActor a msg = do
-  dispatch <- view (mapEventArgsCtl . mapControllerDispatch)
-  liftIO $ dispatch a msg
+dispatchToActor :: MapController -> ActorId -> GameMessage -> IO ()
+dispatchToActor ctl aid msg = do
+  liftIO $ (ctl ^. mapControllerDispatch) aid msg
 {-# INLINE dispatchToActor #-}
 
-dispatchToMap :: (MonadIO m, MapEventReader m) => [GameMessage] -> m ()
-dispatchToMap msgs = do
-  ctl <- view mapEventArgsCtl
-  let serializedMsgs =
-        FullySerialized $ foldMap ((<> word8 0) . toNetwork) msgs
-  liftIO $
-    H.mapM_
-      (flip (ctl ^. mapControllerDispatch) serializedMsgs . fst)
-      (ctl ^. mapControllerActors)
-{-# INLINE dispatchToMap #-}
+dispatchToActors :: MapController -> GameMessage -> IO ()
+dispatchToActors ctl msg = do
+  H.mapM_
+    (flip (ctl ^. mapControllerDispatch) msg . fst)
+    (ctl ^. mapControllerActors)
+{-# INLINE dispatchToActors #-}
 
-applyMapEvent :: (MonadIO m, MapEventReader m) => m ()
-applyMapEvent = go =<< view mapEventArgsEvent
+emitActor ::
+  ActorId ->
+  GameMessage ->
+  MapHandler ()
+emitActor a msg = do
+  tell $ mempty :<*>: MessageMap (HM.singleton a msg)
+{-# INLINE emitActor #-}
+
+emitBroadcast :: GameMessage -> MapHandler ()
+emitBroadcast msg = do
+  tell $ msg :<*>: mempty
+{-# INLINE emitBroadcast #-}
+
+applyMapEvent :: MapHandler ()
+applyMapEvent = go =<< view mapHandlerInputEvent
   where
-    go (MapEventActorSpawn a) =
-      onActorSpawn a
-    go (MapEventActorDespawn aid) =
+    go :: MapEvent -> MapHandler ()
+    go (MapEvent (Match (MapEventActorSpawn (actorType :<*>: aid)))) =
+      onActorTypeSpawn actorType aid
+    go (MapEvent (Match (MapEventActorDespawn aid))) =
       onActorDespawn aid
-    go (MapEventDispatchInformations aid) =
+    go (MapEvent (Match (MapEventDispatchInformations aid))) =
       onDispatchInformations aid
-    go (MapEventActorActionStart aid action params) =
-      updateActor aid (onActionStart action params)
-    go (MapEventActorActionAck aid action) =
-      updateActor aid (onActionAck action)
-    go (MapEventActorActionAbort aid cell) =
-      updateActor aid (onActionAbort cell)
-    go MapEventNoOperation =
+    go (MapEvent (Match (MapEventActorActionStart (aid :<*>: act)))) =
+      updateActor aid $ onActionStart act
+    go (MapEvent (Match (MapEventActorActionAck (aid :<*>: action)))) =
+      updateActor aid $ onActionAck action
+    go (MapEvent (Match (MapEventActorActionAbort (aid :<*>: cell)))) =
+      updateActor aid $ onActionAbort cell
+    go e = do
+      warn $ "Unknow map event: " <> showText e
       pure ()
 
 updateActor ::
-  (MonadIO m, MapEventReader m) =>
   ActorId ->
-  (ActorState -> Actor -> m (ActorState, Actor)) ->
-  m ()
+  (ActorState -> Actor -> MapHandler (ActorState :<*>: Actor)) ->
+  MapHandler ()
 updateActor aid f = do
-  actors <- view (mapEventArgsCtl . mapControllerActors)
+  actors <- view $ mapHandlerInputCtl . mapControllerActors
   a <- liftIO $ H.lookup actors aid
   case a of
     Just foundActor -> do
       let currentState = foundActor ^. gameActorState
-      (nextState, nextActor) <- f currentState foundActor
+      nextState :<*>: nextActor <- f currentState foundActor
       void $
         liftIO $
           H.insert
@@ -232,34 +255,95 @@ updateActor aid f = do
     Nothing -> do
       warn $ "Trying to update unknown actor: " <> showText aid
 
-onActorSpawn :: (MonadIO m, MapEventReader m) => Actor -> m ()
+onActorTypeSpawn ::
+  MapEventActorSpawnType ->
+  ActorId ->
+  MapHandler ()
+onActorTypeSpawn MapEventActorSpawnTypePlayer aid = do
+  loadedPc <- loadPlayerCharacter (coerce aid)
+  case loadedPc of
+    Just pc -> do
+      onActorSpawn $
+        Actor
+          ActorIdle
+          ( ActorLocation
+              (pc ^. playerCharacterCharacterPosition . characterPositionMapId)
+              (pc ^. playerCharacterCharacterPosition . characterPositionCellId)
+          )
+          SouthEast
+          (ActorSpecializationPC pc)
+    Nothing -> do
+      warn "Could not load player"
+onActorTypeSpawn _ _ = do
+  pure ()
+
+onActorSpawn :: Actor -> MapHandler ()
 onActorSpawn a = do
-  dispatchToMap [MapActorSpawn $ pure a]
-  actors <- view (mapEventArgsCtl . mapControllerActors)
+  emitBroadcast $ MapActorSpawn $ pure a
+  actors <- view $ mapHandlerInputCtl . mapControllerActors
   liftIO $ H.insert actors (a ^. to actorId) a
+  m <- readMapTemplate
+  traverse_
+    (emitActor $ a ^. to actorId)
+    [ GameCreationSuccess,
+      GameDataMap
+        (m ^. mapId)
+        (m ^. mapCreationDate)
+        (fromMaybe (error "The impossible happenned") $ m ^. mapDataKey),
+      GameDataSuccess
+    ]
 
-onActorDespawn :: (MonadIO m, MapEventReader m) => ActorId -> m ()
+onActorDespawn :: ActorId -> MapHandler ()
 onActorDespawn aid = do
-  actors <- view (mapEventArgsCtl . mapControllerActors)
+  actors <- view $ mapHandlerInputCtl . mapControllerActors
   liftIO $ H.delete actors aid
-  dispatchToMap [MapActorDespawn [aid]]
+  emitBroadcast $ MapActorDespawn [aid]
 
-onDispatchInformations :: (MonadIO m, MapEventReader m) => ActorId -> m ()
+-- liftIO $
+--   H.mutateIO actors aid $ \a -> do
+--     -- fire the event only if the actor is present
+--     traverse_ (const $ emitBroadcast [MapActorDespawn [aid]]) a
+--     pure (a, ())
+
+onDispatchInformations :: ActorId -> MapHandler ()
 onDispatchInformations aid =
-  dispatchToActor aid . MapActorSpawn =<< readActors
+  emitActor aid . MapActorSpawn =<< readActors
+
+onActionStart ::
+  MapEventActorAction ->
+  ActorState ->
+  Actor ->
+  MapHandler (ActorState :<*>: Actor)
+onActionStart act st a = do
+  case (st, act) of
+    (ActorIdle, Match (MapEventActorActionStartMovement serializedPath)) -> do
+      movementResult <-
+        onMapMovementStart
+          a
+          (deserializeCompressedPath serializedPath)
+      case movementResult of
+        Just (path :<*>: duration) -> do
+          pure $
+            ActorDoing (ActorActionMoving path duration)
+              :<*>: a
+        Nothing ->
+          pure $ st :<*>: a
+    _ -> do
+      -- TODO: allow enqueue interactive actions when movement is done
+      warn "Non idle actor trying to start an action"
+      pure $ st :<*>: a
 
 onActionAck ::
-  (MonadIO m, MapEventReader m) =>
   EffectId ->
   ActorState ->
   Actor ->
-  m (ActorState, Actor)
+  MapHandler (ActorState :<*>: Actor)
 onActionAck eid st a =
-  case (st, eid) of
-    (ActorDoing (ActorActionMoving path duration), EffectActionMapMovement) -> do
+  case st :<*>: eid of
+    (ActorDoing (ActorActionMoving path duration) :<*>: EffectActionMapMovement) -> do
       case lastOf folded (path ^. movementPathSteps) of
         Just finalStep -> do
-          currentTime <- gameCurrentTime @Millisecond
+          currentTime <- gameCurrentTime
           -- TODO: properly log cheating attemp
           when
             (currentTime < duration)
@@ -268,61 +352,41 @@ onActionAck eid st a =
                   <> showText (toNum @Millisecond @Natural $ duration -:- currentTime)
             )
           pure
-            ( ActorIdle,
-              a & actorLocation . actorLocationCellId .~ (finalStep ^. movementStepPoint)
-                & direction .~ finalStep ^. movementStepDirection
+            ( ActorIdle
+                :<*>: ( a & actorLocation . actorLocationCellId .~ (finalStep ^. movementStepPoint)
+                          & direction .~ finalStep ^. movementStepDirection
+                      )
             )
         Nothing -> do
           warn $ "The impossible happenned, empty movement path: " <> showText path
-          pure (st, a)
+          pure $ st :<*>: a
     _ ->
-      pure (st, a)
+      pure $ st :<*>: a
 
 onActionAbort ::
-  (MonadIO m, MapEventReader m) =>
   CellId ->
   ActorState ->
   Actor ->
-  m (ActorState, Actor)
+  MapHandler (ActorState :<*>: Actor)
 onActionAbort c st a = do
   case st of
     (ActorDoing (ActorActionMoving path _)) -> do
       case elemIndexOf folded c path of
         Just _ ->
           -- TODO: check path duration to stopcell in order to avoid speedhacking
-          pure (ActorIdle, a & actorLocation . actorLocationCellId .~ c)
+          pure $
+            ActorIdle
+              :<*>: (a & actorLocation . actorLocationCellId .~ c)
         Nothing ->
-          pure (st, a)
+          pure $ st :<*>: a
     _ -> do
       warn "Not moving actor trying to abort action"
-      pure (st, a)
-
-onActionStart ::
-  (MonadIO m, MapEventReader m) =>
-  EffectId ->
-  EffectParams ->
-  ActorState ->
-  Actor ->
-  m (ActorState, Actor)
-onActionStart eid params st a = do
-  case (st, eid) of
-    (ActorIdle, EffectActionMapMovement) -> do
-      movementResult <- onMapMovementStart a params
-      case movementResult of
-        Just (path, duration) -> do
-          pure (ActorDoing $ ActorActionMoving path duration, a)
-        Nothing ->
-          pure (st, a)
-    _ -> do
-      -- TODO: allow enqueue interactive actions when movement is done
-      warn "Non idle actor trying to start an action"
-      pure (st, a)
+      pure $ st :<*>: a
 
 onMapMovementStart ::
-  (MonadIO m, MapEventReader m) =>
   Actor ->
   CompressedMovementPath ->
-  m (Maybe (MovementPath CellId, GameTime Millisecond))
+  MapHandler (Maybe (MovementPath CellId :<*>: GameTime Millisecond))
 onMapMovementStart a path = do
   m <- readMapTemplate
   let fullPath =
@@ -341,7 +405,6 @@ onMapMovementStart a path = do
           duration =
             -- TODO: handle mount/slide
             movementDuration
-              (m ^. mapWidth)
               ( if len >= 3
                   then MovementModifierRun
                   else MovementModifierWalk
@@ -352,18 +415,21 @@ onMapMovementStart a path = do
           <> showText len
           <> ", duration: "
           <> showText duration
-      currentTime <- gameCurrentTime @Millisecond
-      dispatchToMap
-        [ GameAction
-            True
-            EffectActionMapMovement
-            (a ^. to actorId)
-            (validPath ^. movementPathCompressed)
-        ]
-          -- client-side is a bit imprecise, allow ~10% speedhack
+      currentTime <- gameCurrentTime
+      emitBroadcast $
+        GameAction
+          True
+          EffectActionMapMovement
+          (a ^. to actorId)
+          (validPath ^. movementPathCompressed)
+      -- client-side is a bit imprecise, allow ~10% speedhack
       let extraDelayModifier :: Ratio Natural
-          extraDelayModifier = 0.95
-      pure $ Just (validPath, extraDelayModifier *:* duration +:+ currentTime)
+          extraDelayModifier = 0.90
+      pure $
+        Just
+          ( validPath
+              :<*>: (extraDelayModifier *:* duration +:+ currentTime)
+          )
     Nothing -> do
       warn "Could not decompress path"
       pure Nothing

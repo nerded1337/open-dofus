@@ -1,17 +1,17 @@
-{-# LANGUAGE UnboxedTuples #-}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE NoStrict #-}
+{-# LANGUAGE TypeApplications #-}
 
--- Types.hs ---
+-- Instance.hs ---
 
--- Copyright (C) 2020 Nerd Ed
+-- Copyright (C) 2021 Nerd Ed
 
 -- Author: Nerd Ed <nerded.nerded@gmail.com>
 
@@ -28,41 +28,25 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-module OpenDofus.Game.Map.Actor.Types
-  ( ActorId (..),
-    HasActorId (..),
-    ActorLocation (..),
-    HasActorLocation (..),
+module OpenDofus.Game.Map.Instance
+  ( MapInstance,
+    MapInstanceT (..),
+    HasMapInstanceT (..),
   )
 where
 
+import Control.Monad.Writer
+import Data.HashMap.Strict as HM
 import OpenDofus.Database
+import OpenDofus.Game.Map.Cell
 import OpenDofus.Prelude
-import Data.Primitive
 
-newtype ActorId = ActorId
-  { unActorId :: Word64
+type MapInstance = MapInstanceT (Compose CellT Maybe InteractiveObject)
+
+data MapInstanceT a = MapInstance
+  { _mapInstanceTemplate :: {-# UNPACK #-} !Map,
+    _mapInstanceCells :: !(HM.HashMap CellId a)
   }
-  deriving newtype
-    ( Show,
-      Eq,
-      Ord,
-      Num,
-      Real,
-      Enum,
-      Integral,
-      Hashable,
-      Prim,
-      Storable
-    )
+  deriving stock (Functor, Foldable, Traversable)
 
-class HasActorId a where
-  actorId :: a -> ActorId
-
-data ActorLocation = ActorLocation
-  { _actorLocationMapId :: {-# UNPACK #-} !MapId,
-    _actorLocationCellId :: {-# UNPACK #-} !CellId
-  }
-  deriving stock (Show, Eq)
-
-makeClassy ''ActorLocation
+makeClassy ''MapInstanceT

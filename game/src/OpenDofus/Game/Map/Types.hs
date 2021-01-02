@@ -8,6 +8,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
 
 -- Types.hs ---
 
@@ -32,78 +33,62 @@ module OpenDofus.Game.Map.Types
   ( MapInstance,
     MapInstanceT (..),
     HasMapInstanceT (..),
-    HashTable,
-    MapEventArgs (..),
-    HasMapEventArgs (..),
-    MapEventReader,
-    MapEventDispatch (..),
-    HasMapEventDispatch (..),
+    MapHandlerInput (..),
+    HasMapHandlerInput (..),
+    MapHandler,
     MapController,
     MapControllerT (..),
     HasMapControllerT (..),
-    MapEventChannels (..),
-    HasMapEventChannels (..)
+    MessageMap (..),
   )
 where
 
-import Control.Concurrent.Chan.Unagi.NoBlocking
-import Data.HashMap.Strict as HM
-import qualified Data.HashTable.IO as H
+import Control.Monad.Writer.Strict
+import qualified Data.HashMap.Strict as HM
+import OpenDofus.Core.Data.Record
 import OpenDofus.Database
 import OpenDofus.Game.Map.Actor
-import OpenDofus.Game.Time
-import OpenDofus.Game.Map.Cell
+import OpenDofus.Game.Map.Controller
 import OpenDofus.Game.Map.Event
-import OpenDofus.Game.Map.Interactive
+import OpenDofus.Game.Map.Instance
 import OpenDofus.Game.Network.Message
+import OpenDofus.Game.Time
 import OpenDofus.Prelude
 
-type HashTable k v = H.BasicHashTable k v
-
-type MapInstance = MapInstanceT (Compose CellT Maybe InteractiveObject)
-
-data MapInstanceT a = MapInstance
-  { _mapInstanceTemplate :: {-# UNPACK #-} !Map,
-    _mapInstanceCells :: !(HM.HashMap CellId a)
-  }
-  deriving stock (Functor, Foldable, Traversable)
-
-makeClassy ''MapInstanceT
-
-type MapController = MapControllerT IO (Compose CellT Maybe InteractiveObject)
-
-data MapControllerT m a = MapController
-  { _mapControllerInstance :: {-# UNPACK #-} !(MapInstanceT a),
-    _mapControllerActors :: {-# UNPACK #-} !(HashTable ActorId Actor),
-    _mapControllerInteractiveObjectInstances :: {-# UNPACK #-} !(HashTable CellId InteractiveObjectInstance),
-    _mapControllerDispatch :: !(ActorId -> GameMessage -> m ())
+data MapHandlerInput = MapHandlerInput
+  { _mapHandlerInputCtl :: {-# UNPACK #-} !MapController,
+    _mapHandlerInputElapsed :: {-# UNPACK #-} !(GameTime Millisecond),
+    _mapHandlerInputEvent :: {-# UNPACK #-} !MapEvent
   }
 
-makeClassy ''MapControllerT
+makeClassy ''MapHandlerInput
 
-type MapEventReader m = MonadReader MapEventArgs m
+instance HasConnectPool MapHandlerInput AuthDbConn where
+  getConnectionPool = getConnectionPool . view mapHandlerInputCtl
+  {-# INLINE getConnectionPool #-}
 
-data MapEventArgs = MapEventArgs
-  { _mapEventArgsCtl :: {-# UNPACK #-} !MapController,
-    _mapEventArgsElapsed :: {-# UNPACK #-} !(GameTime Millisecond),
-    _mapEventArgsEvent :: !MapEvent
-  }
+instance HasConnectPool MapHandlerInput GameDbConn where
+  getConnectionPool = getConnectionPool . view mapHandlerInputCtl
+  {-# INLINE getConnectionPool #-}
 
-makeClassy ''MapEventArgs
+newtype MessageMap = MessageMap {unMessageMap :: HM.HashMap ActorId GameMessage}
 
-instance Show MapEventArgs where
-  show = show . view mapEventArgsEvent
+instance Semigroup MessageMap where
+  MessageMap x <> MessageMap y =
+    MessageMap $ HM.unionWith (<>) x y
+  {-# INLINE (<>) #-}
 
-data MapEventDispatch = MapEventDispatch
-  { _mapEventDispatchEvent :: !MapEvent,
-    _mapEventDispatchMapId :: {-# UNPACK #-} !MapId
-  }
+instance Monoid MessageMap where
+  mempty = MessageMap mempty
+  {-# INLINE mempty #-}
 
-makeClassy ''MapEventDispatch
-
-data MapEventChannels = MapEventChannels
-  { _mapEventChannelsIn :: {-# UNPACK #-} !(InChan MapEvent)
-  , _mapEventChannelsOut :: {-# UNPACK #-} !(OutChan MapEvent)
-  }
-
-makeClassy ''MapEventChannels
+type MapHandler a =
+  ReaderT
+    MapHandlerInput
+    ( WriterT
+        ( GameMessage
+            :<*>: MessageMap
+        )
+        IO
+    )
+    a

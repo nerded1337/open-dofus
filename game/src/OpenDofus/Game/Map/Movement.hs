@@ -1,8 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UnboxedTuples #-}
 
@@ -27,21 +30,26 @@
 
 module OpenDofus.Game.Map.Movement
   ( module X,
+    SerializedMovementPath,
     CompressedMovementPath,
     extractFullPath,
     directionBetween,
     movementSpeed,
     movementDuration,
+    maximumNumberOfSteps,
+    serializeCompressedPath,
+    deserializeCompressedPath,
   )
 where
 
-import qualified Data.DList as DL
 import Data.Bits
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder
+import qualified Data.DList as DL
 import qualified Data.DList.DNonEmpty as DLN
-import qualified Data.HashMap.Strict as HM
 import Data.Tuple
+import qualified Data.Vector.Fixed as F
+import qualified Data.Vector.Fixed.Primitive as F
 import Linear.V2
 import OpenDofus.Core.Data.Constructible
 import OpenDofus.Database.Game
@@ -52,9 +60,9 @@ import OpenDofus.Game.Map.Movement.Types as X
 import OpenDofus.Game.Time
 import OpenDofus.Prelude
 
-type CompressedMovementPath = BS.ByteString
+type SerializedMovementPath = F.Vec 10 Word32
 
-type MovementLength = Word32
+type CompressedMovementPath = BS.ByteString
 
 toTime :: Double -> GameTime Millisecond
 toTime = ms . fromIntegral . ceiling @_ @Int32
@@ -83,18 +91,12 @@ movementSpeed MovementModifierMount South = toTime $ cellHeight * 5 -- / 0.2
 movementSpeed MovementModifierMount _ = toTime $ cellDiag * 5 -- / 0.2
 {-# INLINE movementSpeed #-}
 
-movementDuration :: MapWidth -> MovementModifier -> MovementPath CellId -> GameTime Millisecond
-movementDuration w m p =
+movementDuration :: MovementModifier -> MovementPath CellId -> GameTime Millisecond
+movementDuration m p =
   foldl' step (ms 0) (DLN.tail $ p ^. movementPathSteps)
   where
-    step ::
-      GameTime Millisecond ->
-      MovementStep CellId ->
-      GameTime Millisecond
-    step t s@(MovementStep c' d) =
-      let conv = fromIntegral @CellId @Int32
-          speed = movementSpeed m d
-       in t +:+ speed
+    step t (MovementStep _ d) =
+      t +:+ movementSpeed m d
 {-# INLINEABLE movementDuration #-}
 
 directionDiscretisation :: MapWidth -> Direction -> Int32
@@ -114,14 +116,14 @@ directionDiscretisation w d =
 
 directionAtan :: CellPoint -> CellPoint -> Direction
 directionAtan a b
-  | t >= -pi8 && t < pi8 = East
+  | t >= - pi8 && t < pi8 = East
   | t >= pi8 && t < pi3 = SouthEast
   | t >= pi3 && t < 2 * pi3 = South
   | t >= 2 * pi3 && t < 7 * pi8 = SouthWest
   | t >= 7 * pi8 || t < -7 * pi8 = West
   | t >= -7 * pi8 && t < -2 * pi3 = NorthWest
-  | t >= -2 * pi3 && t < -pi3 = North
-  | t >= -pi3 && t < -pi8 = NorthEast
+  | t >= -2 * pi3 && t < - pi3 = North
+  | t >= - pi3 && t < - pi8 = NorthEast
   where
     d = b - a
     t = atan2 (fromIntegral $ d ^. _y) (fromIntegral $ d ^. _x)
@@ -154,7 +156,9 @@ compressStep s =
     <> word8 (forceEncode (s ^. movementStepPoint . to unCellId .&. 63))
   where
     forceEncode =
-      fromMaybe (error "impossible") . encode64
+      fromMaybe (error "impossible")
+        . encode64
+        . fromIntegral
 {-# INLINEABLE compressStep #-}
 
 extractSteps ::
@@ -165,7 +169,10 @@ extractSteps ::
   DL.DList (MovementStep CellId)
 extractSteps w a b d
   | len > 0 =
-    flip MovementStep d . CellId . fromIntegral <$> [a' + gap, a' + gap + gap .. b']
+    flip MovementStep d
+      . CellId
+      . fromIntegral
+      <$> [a' + gap, a' + gap + gap .. b']
   | otherwise =
     []
   where
@@ -173,7 +180,8 @@ extractSteps w a b d
     a' = conv a
     b' = conv b
     gap = directionDiscretisation w d
-    len = fromIntegral @Int32 @Word32 $ (b' - a') `quot` gap
+    len = (b' - a') `quot` gap
+{-# INLINEABLE extractSteps #-}
 
 extractFullPath ::
   MapWidth ->
@@ -182,8 +190,8 @@ extractFullPath ::
   CompressedMovementPath ->
   Maybe (MovementPath CellId)
 extractFullPath w c d compressed =
-    MovementPath fullyCompressed . fst <$!>
-      go compressed (DLN.singleton initialStep, initialStep)
+  MovementPath fullyCompressed . fst
+    <$!> extract compressed (DLN.singleton initialStep, initialStep)
   where
     initialStep =
       MovementStep c d
@@ -192,17 +200,76 @@ extractFullPath w c d compressed =
         toLazyByteString $
           compressStep initialStep <> byteString compressed
     app (x DLN.:| xs) ys = x DLN.:| xs <> ys
-    go (x :- y :- z :- r) (v, MovementStep k _) = do
+    extract (x :- y :- z :- r) (v, MovementStep k _) = do
       p@(MovementStep k' cd) <- mkStep x y z
-      go r (app v $ extractSteps w k k' cd, p)
-    go _ (v, p) =
-      pure (v, p)
+      extract r (app v $ extractSteps w k k' cd, p)
+    extract _ s =
+      pure s
     mkStep x y z =
       step <$!> decode64 (toEnum $ fromEnum x)
         <*> decode64 (toEnum $ fromEnum y)
         <*> decode64 (toEnum $ fromEnum z)
-    step x' y' z' =
+    step x y z =
       MovementStep
-        (CellId $ ((y' .&. 15) `shiftL` 6) .|. z')
-        (toEnum $ fromIntegral x')
+        (CellId $ (fromIntegral (y .&. 15) `shiftL` 6) .|. fromIntegral z)
+        (toEnum $ fromIntegral x)
 {-# INLINEABLE extractFullPath #-}
+
+maximumNumberOfSteps :: Word8
+maximumNumberOfSteps = 15
+{-# INLINE maximumNumberOfSteps #-}
+
+{-
+   Serialize a compressed path in binary format.
+   A path P is composed of N steps.
+   Each steps is composed of 3 char elements in range [a-zA-Z0-9\-\_].
+   Each element is between 0 and 63 index.
+   Encode each step in a word32, resulting in N (max of 15) word32s.
+-}
+serializeCompressedPath :: CompressedMovementPath -> Maybe SerializedMovementPath
+serializeCompressedPath compressed
+  | fromIntegral nbOfSteps > maximumNumberOfSteps = Nothing
+  | otherwise = Just $ F.unfoldr serializeStep compressed
+  where
+    forceDecode =
+      fromMaybe (error "The impossible happenned")
+        . decode64
+        . toEnum
+        . fromEnum
+    serializeStep (x :- y :- z :- r) =
+      (encodeStep x y z, r)
+    serializeStep r =
+      -- Null step as MAX_WORD32
+      (maxBound, r)
+    encodeStep x y z =
+      encodeStep32
+        (forceDecode x)
+        (forceDecode y)
+        (forceDecode z)
+    encodeStep32 x y z =
+      conv x
+        .|. ( (conv y `shiftL` 8)
+                .|. conv z `shiftL` 16
+            )
+    conv = fromIntegral @Word8 @Word32
+    len = BS.length compressed
+    -- 3 chars per step
+    nbOfSteps = len `quot` 3
+{-# INLINEABLE serializeCompressedPath #-}
+
+deserializeCompressedPath :: SerializedMovementPath -> CompressedMovementPath
+deserializeCompressedPath = F.foldMap decodeStep
+  where
+    conv = fromIntegral @Word32 @Word8
+    forceEncode =
+      fromMaybe (error "The impossible happenned")
+        . encode64
+        . conv
+    decodeStep :: Word32 -> CompressedMovementPath
+    decodeStep w
+      | w == maxBound = mempty
+      | otherwise =
+        BS.singleton (forceEncode w)
+          <> BS.singleton (forceEncode $ w `shiftR` 8)
+          <> BS.singleton (forceEncode $ w `shiftR` 16)
+{-# INLINE deserializeCompressedPath #-}
