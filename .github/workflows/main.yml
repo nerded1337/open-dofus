@@ -23,7 +23,7 @@ jobs:
         with:
           path: |
             ~/.stack
-          key: ${{ matrix.os }}-1
+          key: ${{ matrix.os }}-2
       - name: Build
         run: |
           git config --global url."https://github.com/".insteadOf git@github.com:
