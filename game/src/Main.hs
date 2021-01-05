@@ -33,13 +33,15 @@
 
 module Main where
 
--- import Control.Concurrent.Async
+import Control.Concurrent
+import Control.Concurrent.Chan.Unagi.NoBlocking as UB
 import Control.Concurrent.Chan.Unagi.NoBlocking.Unboxed as U
 import qualified Data.Attoparsec.ByteString.Char8 as A
 import qualified Data.ByteString as BS
 import Data.Compact
 import Data.Either
 import qualified Data.HashTable.IO as H
+import Data.Ratio
 import Database.Beam.Postgres
 import OpenDofus.Core.Application
 import OpenDofus.Core.Data.Constructible
@@ -54,6 +56,7 @@ import OpenDofus.Game.Map.Event
 import OpenDofus.Game.Map.Types
 import OpenDofus.Game.Network.Message
 import OpenDofus.Game.Server
+import OpenDofus.Game.Time
 import OpenDofus.Prelude
 import qualified StmContainers.Map as M
 import System.Mem
@@ -75,8 +78,8 @@ raiseMapEvent e = do
       mid <- liftIO $ atomically $ M.lookup aid $ s ^. gameServerPlayerToMap
       case mid of
         Just foundMapId -> do
-          mcs <- liftIO $ H.lookup (s ^. gameServerMapControllers) foundMapId
-          case mcs of
+          ctl <- liftIO $ H.lookup (s ^. gameServerMapControllers) foundMapId
+          case ctl of
             Just (_ :<*>: foundChans) -> do
               liftIO $
                 U.writeChan
@@ -482,11 +485,26 @@ logMessage :: GameHandler ()
 logMessage = do
   debug . showText =<< view handlerInputMessage
 
-dispatchMessage :: M.Map ActorId GameClient -> ActorId -> GameMessage -> IO ()
-dispatchMessage playerToClient actId msg = do
-  -- (i, o) <- U.newChan
-  client <- atomically $ M.lookup actId playerToClient
-  traverse_ (`emitToClient` Identity msg) client
+mkDispatchMessage :: M.Map ActorId GameClient -> IO (ActorId -> GameMessage -> IO ())
+mkDispatchMessage playerToClient = do
+  (i, o) <- UB.newChan @(ActorId :<*>: GameMessage)
+  nbCap <- getNumCapabilities
+  streams <- UB.streamChan nbCap o
+  forM_ streams $
+    \stream -> forkIO $ go stream
+  pure $ \aid msg -> UB.writeChan i (aid :<*>: msg)
+  where
+    go s = do
+      e <- UB.tryReadNext s
+      s' <- case e of
+        Next (aid :<*>: msg) s' -> do
+          client <- atomically $ M.lookup aid playerToClient
+          traverse_ (`emitToClient` Identity msg) client
+          pure s'
+        Pending -> do
+          gameDelay $ ms $ 1000 % 64
+          pure s
+      go s'
 
 app :: IO ()
 app = do
@@ -529,13 +547,16 @@ app = do
     "Map instances created: "
       <> showText (length mapInstances)
 
+  dispatchMessage <-
+    mkDispatchMessage playerToClient
+
   debug "Creating map controllers"
   mapControllers <-
     traverse
       ( runMap
           authDbPool
           gameDbPool
-          (dispatchMessage playerToClient)
+          dispatchMessage
       )
       mapInstances
 
