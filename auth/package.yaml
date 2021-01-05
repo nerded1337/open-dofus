@@ -57,6 +57,7 @@ executables:
       - -fspec-constr-keen
       - -flate-specialise
       - -flate-dmd-anal
+      - -fregs-iterative
       - -O2
       - -rtsopts
       - "\"-with-rtsopts=-N -H128m -A64m -AL64m -I0 -S -xn\""

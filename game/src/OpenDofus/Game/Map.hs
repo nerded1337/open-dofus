@@ -31,7 +31,7 @@
 module OpenDofus.Game.Map
   ( module X,
     createMapInstance,
-    runMaps,
+    runMap,
   )
 where
 
@@ -56,8 +56,6 @@ import OpenDofus.Game.Map.Types
 import OpenDofus.Game.Network.Message
 import OpenDofus.Game.Time hiding (threadDelay)
 import OpenDofus.Prelude
-
-type HashTable k v = H.BasicHashTable k v
 
 createMapInstance ::
   (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m) =>
@@ -99,24 +97,20 @@ createMapController authPool gamePool dispatch m = liftIO $ do
   where
     ioInstanceEntry c = (c ^. cellId, InteractiveObjectInstance)
 
-runMaps ::
+runMap ::
   MonadIO m =>
-  HashTable MapId MapEventChannels ->
   Pool AuthDbConn ->
   Pool GameDbConn ->
   (ActorId -> GameMessage -> IO ()) ->
-  [MapInstance] ->
-  m [MapController]
-runMaps mapChannels auhPooq gamePool dispatch m = do
-  liftIO $ debug $ "Number of maps to run: " <> showText (length m)
-  traverse (runController <=< createMapController auhPooq gamePool dispatch) m
+  MapInstance ->
+  m (MapController :<*>: MapEventChannels)
+runMap auhPool gamePool dispatch = do
+  runController <=< createMapController auhPool gamePool dispatch
   where
     runController mc = liftIO $ do
-      let mid = mc ^. mapControllerInstance . mapInstanceTemplate . mapId
       newChans <- uncurry MapEventChannels <$> U.newChan
-      H.insert mapChannels mid newChans
-      void $ forkIO $ runMapWorker mc (newChans ^. mapEventChannelsOut)
-      pure mc
+      void $ forkIO $ runMapWorker mc $ newChans ^. mapEventChannelsOut
+      pure $ mc :<*>: newChans
 
 runMapWorker :: MapController -> OutChan MapEvent -> IO ()
 runMapWorker ctl s = do
@@ -128,20 +122,20 @@ runMapWorker ctl s = do
     go lastUpdate eventStream = do
       beginUpdateTime <- gameCurrentTime
       events <- tryReadNext eventStream
-      eventStream' <- case events of
+      eventStream' :<*>: consumed <- case events of
         Next event eventStreamNext -> do
-          broadcastMsgs :<*>: MessageMap targetedMsgs <-
+          broadcastMsgs :<*>: ToActor targetedMsgs <-
             execWriterT $
-              runReaderT applyMapEvent $
+              runReaderT (applyMapEvent event) $
                 MapHandlerInput
                   ctl
                   (beginUpdateTime -:- lastUpdate)
                   event
           dispatchToActors ctl broadcastMsgs
           HM.foldMapWithKey (dispatchToActor ctl) targetedMsgs
-          pure eventStreamNext
+          pure $ eventStreamNext :<*>: True
         Pending -> do
-          pure eventStream
+          pure $ eventStream :<*>: False
       hasPlayer <-
         H.foldM
           (\x (_, a) -> pure (x || isPlayerActor a))
@@ -154,7 +148,7 @@ runMapWorker ctl s = do
             ms
               ( 1000
                   % if hasPlayer
-                    then 128
+                    then 64
                     else 1
               )
       if updateTime > maximumUpdateTime
@@ -163,7 +157,10 @@ runMapWorker ctl s = do
             "Update lagged: "
               <> showText (toNum @Millisecond @Natural updateTime)
               <> "ms"
-        else gameDelay $ maximumUpdateTime -:- updateTime
+        else
+          unless
+            consumed
+            (gameDelay $ maximumUpdateTime -:- updateTime)
       go beginUpdateTime eventStream'
 
 readMapInstance :: MapHandler MapInstance
@@ -207,7 +204,7 @@ emitActor ::
   GameMessage ->
   MapHandler ()
 emitActor a msg = do
-  tell $ mempty :<*>: MessageMap (HM.singleton a msg)
+  tell $ mempty :<*>: ToActor (HM.singleton a msg)
 {-# INLINE emitActor #-}
 
 emitBroadcast :: GameMessage -> MapHandler ()
@@ -215,10 +212,9 @@ emitBroadcast msg = do
   tell $ msg :<*>: mempty
 {-# INLINE emitBroadcast #-}
 
-applyMapEvent :: MapHandler ()
-applyMapEvent = go =<< view mapHandlerInputEvent
+applyMapEvent :: MapEvent -> MapHandler ()
+applyMapEvent = go
   where
-    go :: MapEvent -> MapHandler ()
     go (MapEvent (Match (MapEventActorSpawn (actorType :<*>: aid)))) =
       onActorTypeSpawn actorType aid
     go (MapEvent (Match (MapEventActorDespawn aid))) =
@@ -233,11 +229,10 @@ applyMapEvent = go =<< view mapHandlerInputEvent
       updateActor aid $ onActionAbort cell
     go e = do
       warn $ "Unknow map event: " <> showText e
-      pure ()
 
 updateActor ::
   ActorId ->
-  (ActorState -> Actor -> MapHandler (ActorState :<*>: Actor)) ->
+  (ActorState -> Actor -> MapHandler Actor) ->
   MapHandler ()
 updateActor aid f = do
   actors <- view $ mapHandlerInputCtl . mapControllerActors
@@ -245,13 +240,13 @@ updateActor aid f = do
   case a of
     Just foundActor -> do
       let currentState = foundActor ^. gameActorState
-      nextState :<*>: nextActor <- f currentState foundActor
+      nextActor <- f currentState foundActor
       void $
         liftIO $
           H.insert
             actors
             aid
-            (nextActor & gameActorState .~ nextState)
+            nextActor
     Nothing -> do
       warn $ "Trying to update unknown actor: " <> showText aid
 
@@ -299,12 +294,6 @@ onActorDespawn aid = do
   liftIO $ H.delete actors aid
   emitBroadcast $ MapActorDespawn [aid]
 
--- liftIO $
---   H.mutateIO actors aid $ \a -> do
---     -- fire the event only if the actor is present
---     traverse_ (const $ emitBroadcast [MapActorDespawn [aid]]) a
---     pure (a, ())
-
 onDispatchInformations :: ActorId -> MapHandler ()
 onDispatchInformations aid =
   emitActor aid . MapActorSpawn =<< readActors
@@ -313,7 +302,7 @@ onActionStart ::
   MapEventActorAction ->
   ActorState ->
   Actor ->
-  MapHandler (ActorState :<*>: Actor)
+  MapHandler Actor
 onActionStart act st a = do
   case (st, act) of
     (ActorIdle, Match (MapEventActorActionStartMovement serializedPath)) -> do
@@ -324,64 +313,67 @@ onActionStart act st a = do
       case movementResult of
         Just (path :<*>: duration) -> do
           pure $
-            ActorDoing (ActorActionMoving path duration)
-              :<*>: a
+            a & actorState
+              .~ ActorDoing (ActorActionMoving path duration)
         Nothing ->
-          pure $ st :<*>: a
+          pure a
     _ -> do
       -- TODO: allow enqueue interactive actions when movement is done
       warn "Non idle actor trying to start an action"
-      pure $ st :<*>: a
+      pure a
 
 onActionAck ::
   EffectId ->
   ActorState ->
   Actor ->
-  MapHandler (ActorState :<*>: Actor)
-onActionAck eid st a =
-  case st :<*>: eid of
-    (ActorDoing (ActorActionMoving path duration) :<*>: EffectActionMapMovement) -> do
-      case lastOf folded (path ^. movementPathSteps) of
-        Just finalStep -> do
-          currentTime <- gameCurrentTime
-          -- TODO: properly log cheating attemp
-          when
-            (currentTime < duration)
-            ( warn $
-                "Possibly speed hacking: "
-                  <> showText (toNum @Millisecond @Natural $ duration -:- currentTime)
-            )
-          pure
-            ( ActorIdle
-                :<*>: ( a & actorLocation . actorLocationCellId .~ (finalStep ^. movementStepPoint)
-                          & direction .~ finalStep ^. movementStepDirection
-                      )
-            )
-        Nothing -> do
-          warn $ "The impossible happenned, empty movement path: " <> showText path
-          pure $ st :<*>: a
-    _ ->
-      pure $ st :<*>: a
+  MapHandler Actor
+onActionAck EffectActionMapMovement (ActorDoing (ActorActionMoving path duration)) a = do
+  case lastOf folded (path ^. movementPathSteps) of
+    Just finalMovement -> do
+      m <- readMapInstance
+      let c = m ^. mapInstanceCells . at (finalMovement ^. movementStepPoint)
+      debug $ showText $ getCompose <$> c
+      currentTime <- gameCurrentTime
+      -- TODO: properly log cheating attemp
+      when
+        (currentTime < duration)
+        ( warn $
+            "Possibly speed hacking: "
+              <> showText (toNum @Millisecond @Natural $ duration -:- currentTime)
+        )
+      pure
+        ( a
+            & actorLocation . actorLocationCellId .~ finalMovement ^. movementStepPoint
+            & direction .~ finalMovement ^. movementStepDirection
+            & actorState .~ ActorIdle
+        )
+    Nothing -> do
+      warn $ "Could not find the latest step in a path: " <> showText path
+      pure a
+onActionAck eid st a = do
+  warn $
+    "Unhandled action: " <> showText eid <> ", sate: " <> showText st
+  pure a
 
 onActionAbort ::
   CellId ->
   ActorState ->
   Actor ->
-  MapHandler (ActorState :<*>: Actor)
-onActionAbort c st a = do
-  case st of
-    (ActorDoing (ActorActionMoving path _)) -> do
-      case elemIndexOf folded c path of
-        Just _ ->
-          -- TODO: check path duration to stopcell in order to avoid speedhacking
-          pure $
-            ActorIdle
-              :<*>: (a & actorLocation . actorLocationCellId .~ c)
-        Nothing ->
-          pure $ st :<*>: a
-    _ -> do
-      warn "Not moving actor trying to abort action"
-      pure $ st :<*>: a
+  MapHandler Actor
+onActionAbort c (ActorDoing (ActorActionMoving path _)) a = do
+  case elemIndexOf folded c path of
+    Just _ -> do
+      -- TODO: check path duration to stopcell in order to avoid speedhacking
+      pure
+        ( a & actorLocation . actorLocationCellId .~ c
+            & actorState .~ ActorIdle
+        )
+    Nothing -> do
+      warn "Actor trying to abort a movement on a cell not included in its initial path"
+      pure a
+onActionAbort _ _ a = do
+  warn "Not moving actor trying to abort action"
+  pure a
 
 onMapMovementStart ::
   Actor ->

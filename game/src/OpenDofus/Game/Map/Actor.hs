@@ -80,7 +80,7 @@ instance HasActorId ActorSpecialization where
 data Actor = Actor
   { _gameActorState :: !ActorState,
     _gameActorLocation :: {-# UNPACK #-} !ActorLocation,
-    _gameActorDirection :: !Direction,
+    _gameActorDirection :: {-# UNPACK #-} !Direction,
     _gameActorSpecialization :: !ActorSpecialization
   }
   deriving stock (Eq)
@@ -89,6 +89,10 @@ makeClassy ''Actor
 
 instance Show Actor where
   show = show . view gameActorSpecialization
+
+instance HasActorState Actor where
+  actorState = gameActorState
+  {-# INLINE actorState #-}
 
 instance HasActorId Actor where
   actorId = actorId . view gameActorSpecialization
@@ -106,7 +110,6 @@ isPlayerActor :: Actor -> Bool
 isPlayerActor a =
   case a ^. gameActorSpecialization of
     ActorSpecializationPC _ -> True
-    _ -> False
 {-# INLINE isPlayerActor #-}
 
 loadPlayerCharacter ::
@@ -119,7 +122,7 @@ loadPlayerCharacter cid =
     query = GameQuery $
       runSelectReturningOne $
         select $ do
-          c <- all_ (gameDb ^. character)
+          c <- all_ $ gameDb ^. character
           cp <-
             oneToOne_
               (gameDb ^. characterPosition)

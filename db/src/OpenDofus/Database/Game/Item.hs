@@ -208,7 +208,7 @@ data WeaponInfos = WeaponInfos
       HasSqlValueSyntax PgValueSyntax,
       FromBackendRow Postgres
     )
-    via (BinaryField WeaponInfos)
+    via BinaryField WeaponInfos
 
 makeClassy ''WeaponInfos
 

@@ -44,6 +44,7 @@ dependencies:
 - uri-encode
 - bitwise-enum
 - base64-bytestring
+- async
 - streamly
 - open-dofus-core
 - open-dofus-db
@@ -66,6 +67,11 @@ executables:
       - -fspecialise-aggressively
       - -fstatic-argument-transformation
       - -flate-dmd-anal
+      - -flate-dmd-anal
+      - -fregs-graph
+      - -fregs-iterative
+      - -fllvm
+      - -optlc "-O3  --enable-no-infs-fp-math --enable-no-nans-fp-math --enable-unsafe-fp-math"
       - -O2
       - -rtsopts
-      - "\"-with-rtsopts=-N -H2048m -A128m -AL128m -I0 -S -xn\""
+      - "\"-with-rtsopts=-N -H512m -A64m -AL512m -n16m -I0 -S -xn\""

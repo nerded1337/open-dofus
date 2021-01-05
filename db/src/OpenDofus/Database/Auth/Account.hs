@@ -249,8 +249,7 @@ data AccountTicketT f = AccountTicket
 
 instance Table AccountTicketT where
   data PrimaryKey AccountTicketT f
-    = AccountTicketPK
-        !(C f AccountTicketId)
+    = AccountTicketPK !(C f AccountTicketId)
     deriving (Generic, Beamable)
   primaryKey = AccountTicketPK . _accountTicketId
   {-# INLINE primaryKey #-}

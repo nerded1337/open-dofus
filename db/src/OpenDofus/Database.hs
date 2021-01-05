@@ -28,8 +28,9 @@ module OpenDofus.Database
   ( module X,
     Pool,
     populateGameDb,
-    createGameDb,
-    createAuthDb,
+    bringGameDbUpToDate,
+    bringAuthDbUpToDate,
+    checkDbSchemas,
     createConnPool,
     runVolatile,
     runSerializable,
@@ -57,7 +58,9 @@ import Data.Functor
 import Data.Pool
 import Database.Beam as X
 import Database.Beam.Migrate as X
+import Database.Beam.Migrate.Simple as X
 import Database.Beam.Postgres as X
+import Database.Beam.Postgres.Migrate as PGM
 import Database.PostgreSQL.Simple.Transaction as X
 import OpenDofus.Database.Auth as X
 import OpenDofus.Database.Game as X
@@ -78,9 +81,9 @@ populateGameDb ::
   m ()
 populateGameDb path = do
   let path' = path <> "/lang/swf"
-      version = "1006"
+      version = "1015"
       mkPath x = path' <> x <> "_" <> version <> ".swf"
-      runQ = runSerializable @GameDbConn @m . fromPg
+      runQ = runSerializable @GameDbConn . fromPg
   ss <- liftIO $ loadSpells $ mkPath "/spells_fr"
   efs <- liftIO $ loadEffects $ mkPath "/effects_fr"
   bds <- liftIO $ loadBreeds $ mkPath "/classes_fr"
@@ -123,7 +126,7 @@ populateGameDb path = do
     traverse_
       ( \(b, bc, bs) -> do
           runInsert $ insert (gameDb ^. breed) $ insertValues [b]
-          runInsert $ insert (gameDb ^. breedCaracteristicCost) $ insertValues $ toList bc
+          runInsert $ insert (gameDb ^. breedCharacteristicCost) $ insertValues $ toList bc
           runInsert $ insert (gameDb ^. breedSpell) $ insertValues $ toList bs
       )
       bds
@@ -156,13 +159,18 @@ populateGameDb path = do
       msubas
   runQ $ runInsert $ insert (gameDb ^. map) $ insertValues $ toList ms
 
-createDb ::
-  forall a b x m.
-  (MonadIO m, HasConnectPool x b, MonadReader x m) =>
-  MigrationSteps Postgres () (CheckedDatabaseSettings Postgres a) ->
-  m ()
-createDb m = do
-  pool <- asks (getConnectionPool @x @b)
+checkDbSchemas ::
+  forall db env m f.
+  ( Database Postgres db,
+    HasConnType (db f),
+    HasConnectPool env (ConnTypeOf (db f)),
+    MonadReader env m,
+    MonadIO m
+  ) =>
+  CheckedDatabaseSettings Postgres db ->
+  m VerificationResult
+checkDbSchemas db = do
+  pool <- view $ to $ getConnectionPool @env @(ConnTypeOf (db f))
   liftIO $ withResource pool (go . coerce)
   where
     go connection =
@@ -170,71 +178,138 @@ createDb m = do
         withTransactionSerializable connection $
           runBeamPostgres
             connection
-            ( void $
-                runMigrationSteps 0 Nothing m (\_ _ -> executeMigration runNoReturn)
-            )
+            $ verifySchema PGM.migrationBackend db
+
+bringDbUpToDate ::
+  forall db env m f.
+  ( Database Postgres db,
+    HasConnType (db f),
+    HasConnectPool env (ConnTypeOf (db f)),
+    MonadReader env m,
+    MonadIO m
+  ) =>
+  MigrationSteps Postgres () (CheckedDatabaseSettings Postgres db) ->
+  m (Maybe (CheckedDatabaseSettings Postgres db))
+bringDbUpToDate m = do
+  pool <- view $ to $ getConnectionPool @env @(ConnTypeOf (db f))
+  liftIO $ withResource pool (go . coerce)
+  where
+    allowDestructive =
+      defaultUpToDateHooks {runIrreversibleHook = pure True}
+    go connection =
+      liftIO $
+        withTransactionSerializable connection $
+          runBeamPostgres
+            connection
+            $ bringUpToDateWithHooks allowDestructive PGM.migrationBackend m
 
 createConnPool ::
-  (Coercible a Connection, Coercible Connection a, MonadIO m) =>
+  ( Coercible a Connection,
+    Coercible Connection a,
+    MonadIO m
+  ) =>
   ConnectInfo ->
   m (Pool a)
 createConnPool connInfo =
-  liftIO $ createPool (coerce <$> connect connInfo) (close . coerce) 2 60 100
+  liftIO $
+    createPool
+      (coerce <$> connect connInfo)
+      (close . coerce)
+      stripes
+      aliveSeconds
+      maximumConnPerStripe
+  where
+    stripes = 4
+    aliveSeconds = 4 * 60
+    maximumConnPerStripe = 100 `quot` stripes
 
-createGameDb ::
-  forall x m.
-  (MonadIO m, HasConnectPool x GameDbConn, MonadReader x m) =>
-  m ()
-createGameDb = createDb @GameDb @GameDbConn gameDbMigrations
+bringGameDbUpToDate ::
+  forall env m.
+  ( HasConnectPool env GameDbConn,
+    MonadReader env m,
+    MonadIO m
+  ) =>
+  m (Maybe (CheckedDatabaseSettings Postgres GameDb))
+bringGameDbUpToDate =
+  bringDbUpToDate gameDbMigrations
 
-createAuthDb ::
-  (MonadIO m, HasConnectPool x AuthDbConn, MonadReader x m) => m ()
-createAuthDb = createDb @AuthDb @AuthDbConn authDbMigrations
+bringAuthDbUpToDate ::
+  ( HasConnectPool env AuthDbConn,
+    MonadReader env m,
+    MonadIO m
+  ) =>
+  m (Maybe (CheckedDatabaseSettings Postgres AuthDb))
+bringAuthDbUpToDate =
+  bringDbUpToDate authDbMigrations
 
 runVolatile ::
-  forall b m x a.
-  (MonadIO m, HasConnectPool x b, MonadReader x m) =>
-  QueryTypeOf b a ->
+  forall conn env m a.
+  ( HasConnectPool env conn,
+    MonadReader env m,
+    MonadIO m
+  ) =>
+  QueryTypeOf conn a ->
   m a
 runVolatile query = do
-  pool <- asks (getConnectionPool @x @b)
+  pool <- view $ to $ getConnectionPool @env @conn
   liftIO $ withResource pool (go . coerce)
   where
-    go connection = runQuery connection query
+    go connection =
+      withTransactionLevel
+        RepeatableRead
+        connection
+        (runQuery connection query)
+{-# INLINE runVolatile #-}
 
 runSerializable ::
-  forall b m x a.
-  (MonadIO m, HasConnectPool x b, MonadReader x m) =>
-  QueryTypeOf b a ->
+  forall conn env m a.
+  ( HasConnectPool env conn,
+    MonadReader env m,
+    MonadIO m
+  ) =>
+  QueryTypeOf conn a ->
   m a
 runSerializable query = do
-  pool <- asks (getConnectionPool @x @b)
+  pool <- view $ to $ getConnectionPool @env @conn
   liftIO $ withResource pool (go . coerce)
   where
     go connection =
       withTransactionSerializable connection $ runQuery connection query
+{-# INLINE runSerializable #-}
 
 runQuery :: (MonadIO m, IsPg q) => Connection -> q a -> m a
-runQuery connection = liftIO . runBeamPostgres connection . toPg
+runQuery connection =
+  liftIO
+    . runBeamPostgres connection
+    . toPg
+{-# INLINE runQuery #-}
 
 getWorldServers :: AuthQuery [WorldServer]
 getWorldServers = AuthQuery query
   where
-    query = runSelectReturningList $ select $ all_ (authDb ^. worldServer)
+    query =
+      runSelectReturningList $
+        select $
+          all_ $
+            authDb ^. worldServer
 
 getAccountByName :: AccountName -> AuthQuery (Maybe Account)
 getAccountByName accName = AuthQuery query
   where
     query = runSelectReturningOne $
       select $ do
-        acc <- all_ (authDb ^. account)
-        guard_ (acc ^. accountName ==. val_ accName)
+        acc <- all_ $ authDb ^. account
+        guard_ $ acc ^. accountName ==. val_ accName
         pure acc
 
 getAccountById :: AccountId -> AuthQuery (Maybe Account)
 getAccountById accId = AuthQuery query
   where
-    query = runSelectReturningOne $ lookup_ (authDb ^. account) (AccountPK accId)
+    query =
+      runSelectReturningOne $
+        lookup_
+          (authDb ^. account)
+          (AccountPK accId)
 
 setAccountIsOnline :: AccountId -> AccountIsOnline -> AuthQuery ()
 setAccountIsOnline accId isOnline = AuthQuery query
@@ -253,7 +328,10 @@ generateAccountTicket accId = AuthQuery query
       ticketId <- liftIO $ AccountTicketId <$> nextRandom
       currentTime <- liftIO $ AccountTicketCreationDate <$> getCurrentTime
       let ticket = AccountTicket ticketId (AccountPK accId) currentTime
-      runInsert $ insert (authDb ^. accountTicket) $ insertValues [ticket]
+      runInsert $
+        insert
+          (authDb ^. accountTicket)
+          (insertValues [ticket])
       pure ticket
 
 getAccountRemainingSubscriptionInMilliseconds ::
@@ -275,26 +353,30 @@ getAccountByTicket i = AuthQuery query
   where
     query = runSelectReturningOne $
       select $ do
-        tick <- all_ (authDb ^. accountTicket)
+        tick <- all_ $ authDb ^. accountTicket
         acc <-
           join_
             (authDb ^. account)
             (\acc -> _accountTicketAccountId tick ==. primaryKey acc)
-        guard_ (tick ^. accountTicketId ==. val_ i)
+        guard_ $ tick ^. accountTicketId ==. val_ i
         pure (tick, acc)
 
 getBreedById :: BreedId -> GameQuery (Maybe Breed)
 getBreedById bid = GameQuery query
   where
-    query = runSelectReturningOne $ lookup_ (gameDb ^. breed) (BreedPK bid)
+    query =
+      runSelectReturningOne $
+        lookup_
+          (gameDb ^. breed)
+          (BreedPK bid)
 
 getCharacterByName :: CharacterName -> GameQuery (Maybe Character)
 getCharacterByName cn = GameQuery query
   where
     query = runSelectReturningOne $
       select $ do
-        c <- all_ (gameDb ^. character)
-        guard_ (c ^. characterName ==. val_ cn)
+        c <- all_ $ gameDb ^. character
+        guard_ $ c ^. characterName ==. val_ cn
         pure c
 
 getCharacterPosition :: CharacterId -> GameQuery (Maybe CharacterPosition)
@@ -302,8 +384,8 @@ getCharacterPosition cid = GameQuery query
   where
     query = runSelectReturningOne $
       select $ do
-        c <- all_ (gameDb ^. characterPosition)
-        guard_ (c ^. characterPositionCharacterId ==. val_ cid)
+        c <- all_ $ gameDb ^. characterPosition
+        guard_ $ c ^. characterPositionCharacterId ==. val_ cid
         pure c
 
 isAccountCharacter :: AccountId -> CharacterId -> GameQuery Bool
@@ -312,62 +394,44 @@ isAccountCharacter aid cid = GameQuery query
     query = fmap isJust $
       runSelectReturningOne $
         select $ do
-          c <- all_ (gameDb ^. character)
-          guard_ (c ^. characterId ==. val_ cid)
-          guard_ (c ^. characterAccountId ==. val_ aid)
+          c <- all_ $ gameDb ^. character
+          guard_ $
+            c ^. characterId ==. val_ cid
+              &&. c ^. characterAccountId ==. val_ aid
           pure c
 
 createNewCharacter ::
   AccountId ->
+  CharacterId ->
   CharacterName ->
   Breed ->
-  CharacterSex ->
-  CharacterColor ->
-  CharacterColor ->
-  CharacterColor ->
-  GameQuery (Character, CharacterLook)
-createNewCharacter ai cn b s c1 c2 c3 = GameQuery query
+  CharacterPosition ->
+  CharacterLook ->
+  GameQuery (Character, CharacterPosition, CharacterLook)
+createNewCharacter ai cid cn b cp cl = GameQuery query
   where
-    characterMinimumId = 100000
-    defaultGfxSize = 100
     query = do
-      nextCharacterId <-
-        fmap ((+ 1) . fromMaybe characterMinimumId . join) $
-          runSelectReturningOne $
-            select $
-              aggregate_ (max_ . view characterId) $
-                all_ (gameDb ^. character)
       let newCharacter =
             Character
-              nextCharacterId
+              cid
               cn
               (BreedPK $ b ^. breedId)
               (AccountPK ai)
               1
               0
               0
-          newCharacterLook =
-            CharacterLook
-              (CharacterPK nextCharacterId)
-              ( GfxId $
-                  fromIntegral $
-                    unBreedId (b ^. breedId) * 10
-                      + bool
-                        0
-                        1
-                        (unCharacterSex s)
-              )
-              defaultGfxSize
-              s
-              c1
-              c2
-              c3
-      runInsert $ insert (gameDb ^. character) $ insertValues [newCharacter]
+      runInsert $
+        insert (gameDb ^. character) $
+          insertValues [newCharacter]
       runInsert $
         insert (gameDb ^. characterLook) $
           insertValues
-            [newCharacterLook]
-      pure (newCharacter, newCharacterLook)
+            [cl]
+      runInsert $
+        insert (gameDb ^. characterPosition) $
+          insertValues
+            [cp]
+      pure (newCharacter, cp, cl)
 
 getMaps :: GameQuery [Map]
 getMaps = GameQuery query
@@ -376,7 +440,7 @@ getMaps = GameQuery query
       select $
         fmap fst $
           orderBy_ (asc_ . view subAreaId . snd) $ do
-            m <- all_ (gameDb ^. map)
+            m <- all_ $ gameDb ^. map
             sa <- related_ (gameDb ^. mapSubArea) (_mapSubArea m)
             pure (m, sa)
 
@@ -391,7 +455,7 @@ getInteractiveObjectByGfxId iogfx = GameQuery query
   where
     query = runSelectReturningOne $
       select $ do
-        io <- all_ (gameDb ^. interactiveObject)
+        io <- all_ $ gameDb ^. interactiveObject
         gfx <-
           oneToMany_
             (gameDb ^. interactiveObjectGfx)

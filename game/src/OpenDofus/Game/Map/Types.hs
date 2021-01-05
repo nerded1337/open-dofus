@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GeneralisedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
@@ -39,7 +40,7 @@ module OpenDofus.Game.Map.Types
     MapController,
     MapControllerT (..),
     HasMapControllerT (..),
-    MessageMap (..),
+    ToActor (..),
   )
 where
 
@@ -58,7 +59,7 @@ import OpenDofus.Prelude
 data MapHandlerInput = MapHandlerInput
   { _mapHandlerInputCtl :: {-# UNPACK #-} !MapController,
     _mapHandlerInputElapsed :: {-# UNPACK #-} !(GameTime Millisecond),
-    _mapHandlerInputEvent :: {-# UNPACK #-} !MapEvent
+    _mapHandlerInputEvent :: !MapEvent
   }
 
 makeClassy ''MapHandlerInput
@@ -71,15 +72,17 @@ instance HasConnectPool MapHandlerInput GameDbConn where
   getConnectionPool = getConnectionPool . view mapHandlerInputCtl
   {-# INLINE getConnectionPool #-}
 
-newtype MessageMap = MessageMap {unMessageMap :: HM.HashMap ActorId GameMessage}
+newtype ToActor a
+  = ToActor {unToActor :: HM.HashMap ActorId a}
+  deriving (Functor, Foldable, Traversable)
 
-instance Semigroup MessageMap where
-  MessageMap x <> MessageMap y =
-    MessageMap $ HM.unionWith (<>) x y
+instance Semigroup a => Semigroup (ToActor a) where
+  ToActor x <> ToActor y =
+    ToActor $ HM.unionWith (<>) x y
   {-# INLINE (<>) #-}
 
-instance Monoid MessageMap where
-  mempty = MessageMap mempty
+instance Monoid a => Monoid (ToActor a) where
+  mempty = ToActor mempty
   {-# INLINE mempty #-}
 
 type MapHandler a =
@@ -87,7 +90,7 @@ type MapHandler a =
     MapHandlerInput
     ( WriterT
         ( GameMessage
-            :<*>: MessageMap
+            :<*>: ToActor GameMessage
         )
         IO
     )

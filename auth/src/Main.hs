@@ -258,12 +258,12 @@ dispatchToHandler = writeState =<< transition =<< readStateAndMsg
     currentMsg = view handlerInputMessage
 
 logMessage :: AuthHandler ()
-logMessage = debug . showText =<< view handlerInputMessage
+logMessage = debugShow =<< view handlerInputMessage
 
 app :: IO ()
 app = do
   authDbPool <-
-    createConnPool $
+    createConnPool @AuthDbConn $
       ConnectInfo
         "localhost"
         5432

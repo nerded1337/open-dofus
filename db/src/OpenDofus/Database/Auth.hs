@@ -33,6 +33,7 @@ module OpenDofus.Database.Auth
     account,
     accountTicket,
     worldServer,
+    authDbChecked,
     authDb,
     authDbMigrations,
   )
@@ -56,6 +57,9 @@ newtype AuthDbConn = AuthDbConn
   { unAuthDbConn :: Connection
   }
 
+instance HasConnType (AuthDb f) where
+  type ConnTypeOf (AuthDb f) = AuthDbConn
+
 instance HasQueryType AuthDbConn where
   type QueryTypeOf AuthDbConn = AuthQuery
 
@@ -73,8 +77,11 @@ AuthDb
   (TableLens worldServer) =
     dbLenses
 
+authDbChecked :: CheckedDatabaseSettings Postgres AuthDb
+authDbChecked = evaluateDatabase authDbMigrations
+
 authDb :: DatabaseSettings Postgres AuthDb
-authDb = unCheckDatabase $ evaluateDatabase authDbMigrations
+authDb = unCheckDatabase authDbChecked
 
 authDbMigrations ::
   MigrationSteps Postgres () (CheckedDatabaseSettings Postgres AuthDb)
@@ -86,7 +93,7 @@ initialMigration _ =
     <$> createTable
       "account"
       ( Account
-          (field "id" (coerceType uuid) notNull unique)
+          (field "id" (coerceType uuid) notNull)
           (field "name" (coerceType (varchar (Just 20))) notNull unique)
           (field "nickname" (coerceType (varchar (Just 20))) notNull unique)
           (field "password" (coerceType (varchar (Just 20))) notNull)
@@ -101,14 +108,14 @@ initialMigration _ =
     <*> createTable
       "account_ticket"
       ( AccountTicket
-          (field "id" (coerceType uuid) notNull unique)
+          (field "id" (coerceType uuid) notNull)
           (AccountPK $ field "account_id" (coerceType uuid) notNull)
           (field "creation_date" utctime notNull)
       )
     <*> createTable
       "world_server"
       ( WorldServer
-          (field "id" int notNull unique)
+          (field "id" int notNull)
           (field "completion" enumType notNull)
           (field "status" enumType notNull)
           (field "ip" (coerceType (varchar (Just 45))) notNull)

@@ -28,7 +28,7 @@ module OpenDofus.Game.Network.Message
   )
 where
 
-import Data.ByteString.Lazy.Builder
+import Data.ByteString.Builder
 import Numeric.Lens
 import OpenDofus.Core.Network.Client
 import OpenDofus.Database
@@ -46,7 +46,7 @@ data CharacterCreationFailureReason
 
 data GameMessage
   = FullySerialized
-      {-# UNPACK #-} !Builder
+     !Builder
   | HelloGame
   | AccountTicketIsInvalid
   | AccountTicketIsValid

@@ -43,6 +43,7 @@ where
 
 import Data.Compact
 import qualified Data.HashTable.IO as H
+import OpenDofus.Core.Data.Record
 import OpenDofus.Core.Network.Client
 import OpenDofus.Core.Network.Server
 import OpenDofus.Core.Network.Types (HasNetworkId (..))
@@ -84,8 +85,7 @@ data GameServer = GameServer
     _gameServerAuthDbPool :: {-# UNPACK #-} !(Pool AuthDbConn),
     _gameServerGameDbPool :: {-# UNPACK #-} !(Pool GameDbConn),
     _gameServerWorldId :: {-# UNPACK #-} !WorldId,
-    _gameServerMapControllers :: {-# UNPACK #-} !(HashTable MapId MapController),
-    _gameServerMapChannels :: {-# UNPACK #-} !(HashTable MapId MapEventChannels),
+    _gameServerMapControllers :: {-# UNPACK #-} !(HashTable MapId (MapController :<*>: MapEventChannels)),
     _gameServerPlayerToClient :: {-# UNPACK #-} !(M.Map ActorId GameClient),
     _gameServerPlayerToMap :: {-# UNPACK #-} !(M.Map ActorId MapId),
     _gameServerCompact :: {-# UNPACK #-} !(Compact ())

@@ -132,38 +132,32 @@ type family LengthOf a :: Nat where
 newtype StorablePrim a = StorablePrim {unStorablePrim :: a}
   deriving newtype (Show, Eq, Storable)
 
--- unsafePeek :: forall a. Storable a => Int -> ByteArray -> StorablePrim a
--- unsafePeek off =
---   unsafePerformIO
---     . fmap StorablePrim
---     . flip S.peekByteOff off
---     . castPtr
---     . byteArrayContents
--- {-# NOINLINE unsafePeek #-}
-
 unsafePeekMutable :: forall a s. Storable a => Int -> MutableByteArray s -> StorablePrim a
 unsafePeekMutable off =
-  unsafePerformIO
+  unsafeDupablePerformIO
     . fmap StorablePrim
     . flip S.peekByteOff off
     . castPtr
     . mutableByteArrayContents
-{-# NOINLINE unsafePeekMutable #-}
+{-# INLINE unsafePeekMutable #-}
 
 unsafePokeMutable :: forall a s. Storable a => Int -> MutableByteArray s -> StorablePrim a -> ()
 unsafePokeMutable off arr =
-  unsafePerformIO
+  unsafeDupablePerformIO
     . S.pokeByteOff (mutableByteArrayContents arr) off
     . unStorablePrim
-{-# NOINLINE unsafePokeMutable #-}
+{-# INLINE unsafePokeMutable #-}
 
 instance Storable a => Prim (StorablePrim a) where
   sizeOf# _ =
     case S.sizeOf @a undefined of
       I# i# -> i#
+  {-# INLINE sizeOf# #-}
+
   alignment# _ =
     case S.alignment @a undefined of
       I# i# -> i#
+  {-# INLINE alignment# #-}
 
   readByteArray# ::
     forall s.
@@ -221,39 +215,52 @@ instance Storable a => Prim (StorablePrim a) where
   setOffAddr# =
     error "Not implemented"
 
-instance (Show a, Show b, S.Storable a, S.Storable b) => Storable (a :<*>: b) where
+instance (S.Storable a, S.Storable b) => Storable (a :<*>: b) where
   sizeOf _ =
     S.sizeOf @a undefined
       + S.sizeOf @b undefined
+  {-# INLINE sizeOf #-}
+
   alignment _ =
     max
       (S.alignment @a undefined)
       (S.alignment @b undefined)
+  {-# INLINE alignment #-}
+
   peek p = do
     x <- peekByteOff p 0
     y <- peekByteOff p $ S.sizeOf @a undefined
     pure $ x :<*>: y
+  {-# INLINE peek #-}
+
   poke p (x :<*>: y) = do
     pokeByteOff p 0 x
     pokeByteOff p (S.sizeOf @a undefined) y
+  {-# INLINE poke #-}
 
-instance (Show a, Show b, S.Storable a, S.Storable b) => Storable (a :<+>: b) where
+instance (S.Storable a, S.Storable b) => Storable (a :<+>: b) where
   sizeOf _ =
     S.sizeOf @Word8 undefined
       + S.sizeOf @a undefined
       + S.sizeOf @b undefined
+  {-# INLINE sizeOf #-}
+
   alignment _ =
     nextPowerOfTwo $
       S.sizeOf @Word8 undefined
         + max
           (S.alignment @a undefined)
           (S.alignment @b undefined)
+  {-# INLINE alignment #-}
+
   peek p = do
     tag <- peekByteOff @Word8 p 0
     case tag of
       0 -> L <$> peekByteOff p 1
       1 -> R <$> peekByteOff p 1
       _ -> error "The impossible happenned"
+  {-# INLINE peek #-}
+
   poke p xy = do
     case xy of
       L x -> do
@@ -262,3 +269,4 @@ instance (Show a, Show b, S.Storable a, S.Storable b) => Storable (a :<+>: b) wh
       R y -> do
         pokeByteOff @Word8 p 0 1
         pokeByteOff p 1 y
+  {-# INLINE poke #-}

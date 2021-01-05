@@ -1,4 +1,4 @@
-resolver: nightly-2020-12-10
+resolver: nightly-2021-01-03
 
 allow-newer: true
 
@@ -10,6 +10,7 @@ packages:
   - auth
   - game
   - lang-downloader
+  - db-creator
 
 extra-deps:
   - git: https://github.com/haskell-beam/beam
@@ -37,4 +38,11 @@ extra-deps:
   - compact-0.2.0.0@sha256:9c5785bdc178ea6cf8f514ad35a78c64220e3cdb22216534e4cf496765551c7e,2345
 
 nix:
-  packages: [ zlib postgresql ]
+  pure: false
+  add-gc-roots: true
+  path:
+    - "nixpkgs=/nix/var/nix/profiles/per-user/root/channels/nixpkgs"
+  packages:
+    - zlib
+    - postgresql
+    - llvm_9

@@ -1,5 +1,9 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -33,66 +37,21 @@
 
 module OpenDofus.Database.Types where
 
-import Data.Binary as B (Binary, Word, decodeOrFail, encode)
-import Data.ByteString.Builder (byteString, char8)
-import qualified Data.ByteString.Lazy as BS
-import Data.Coerce (Coercible, coerce)
-import Data.Kind (Type)
-import Data.Pool (Pool)
-import Data.Proxy (Proxy (Proxy))
+import Data.Binary as B (Binary, decodeOrFail, encode)
+import Data.Coerce
+import Data.Kind
+import Data.Pool
 import qualified Data.Vector as V
-import Database.Beam (DataType (..), FromBackendRow, Typeable)
+import Data.Vector.Binary ()
+import Database.Beam
 import Database.Beam.Backend
-  ( HasSqlValueSyntax (..),
-    IsSql92DataTypeSyntax (intType, timestampType, varCharType),
-  )
 import Database.Beam.Migrate.Generics
-  ( HasDefaultSqlDataType (defaultSqlDataType),
-  )
 import Database.Beam.Postgres
-  ( Connection,
-    Pg,
-    PgSyntax,
-    Postgres,
-    ResultError (ConversionFailed),
-  )
 import Database.Beam.Postgres.Syntax
-  ( PgDataTypeSyntax (PgDataTypeSyntax),
-    PgValueSyntax,
-    defaultPgValueSyntax,
-    pgByteaType,
-    pgRenderSyntaxScript,
-    pgUnboundedArrayType,
-  )
 import Database.PostgreSQL.Simple.FromField
-  ( FromField (..),
-    returnError,
-  )
 import Database.PostgreSQL.Simple.ToField
-  ( Action (Many, Plain),
-    ToField (..),
-  )
 import qualified Database.PostgreSQL.Simple.Types as T
-import OpenDofus.Core.Data.Constructible (intersperseC)
 import OpenDofus.Prelude
-  ( Applicative (pure),
-    Bool (False, True),
-    Bounded,
-    Either (Left, Right),
-    Enum (..),
-    Eq,
-    Functor (fmap),
-    Maybe (Nothing),
-    Ord ((>)),
-    Read,
-    Semigroup ((<>)),
-    Show,
-    UTCTime,
-    id,
-    ($),
-    (.),
-    (<$>),
-  )
 
 class (forall a. Coercible (q a) (Pg a), forall a. Coercible (Pg a) (q a)) => IsPg q where
   toPg :: q a -> Pg a
@@ -110,6 +69,9 @@ instance IsPg Pg where
   fromPg = id
   {-# INLINE fromPg #-}
 
+class HasConnType a where
+  type ConnTypeOf a :: Type
+
 class IsPg (QueryTypeOf a) => HasQueryType a where
   type QueryTypeOf a :: Type -> Type
 
@@ -124,7 +86,9 @@ newtype BinaryField a = BinaryField
   { unBinaryField :: a
   }
 
-instance (FromField a, Binary a, Typeable a) => FromBackendRow Postgres (BinaryField a)
+instance
+  (FromField a, Binary a, Typeable a) =>
+  FromBackendRow Postgres (BinaryField a)
 
 instance Binary a => ToField (BinaryField a) where
   toField = toField . T.Binary . B.encode . unBinaryField
@@ -149,62 +113,59 @@ newtype EnumField a = EnumField
   { unEnumField :: a
   }
 
-instance (FromField a, Enum a, Bounded a, Typeable a) => FromBackendRow Postgres (EnumField a)
+instance
+  (FromField a, Enum a, Typeable a) =>
+  FromBackendRow Postgres (EnumField a)
 
-instance (Enum a, Bounded a) => ToField (EnumField a) where
+instance (Enum a) => ToField (EnumField a) where
   toField = toField . fromEnum . unEnumField
 
-instance (Enum a, Bounded a, Typeable a) => FromField (EnumField a) where
+instance (Enum a, Typeable a) => FromField (EnumField a) where
   fromField u v = EnumField . toEnum <$> fromField u v
 
-instance (Enum a, Bounded a) => HasDefaultSqlDataType Postgres (EnumField a) where
+instance (Enum a) => HasDefaultSqlDataType Postgres (EnumField a) where
   defaultSqlDataType _ _ _ = pgByteaType
 
-instance (HasDefaultSqlDataType Postgres a, Enum a, Bounded a) => HasSqlValueSyntax PgValueSyntax (EnumField a) where
+instance
+  ( HasDefaultSqlDataType Postgres a,
+    Enum a
+  ) =>
+  HasSqlValueSyntax PgValueSyntax (EnumField a)
+  where
   sqlValueSyntax = defaultPgValueSyntax
 
 newtype PgArray a = PgArray
   { unPgArray :: V.Vector a
   }
-  deriving newtype (Show, Eq)
+  deriving newtype
+    ( Show,
+      Eq,
+      Ord,
+      Binary
+    )
+  deriving stock
+    ( Functor,
+      Foldable,
+      Traversable
+    )
+  deriving
+    ( ToField,
+      FromField,
+      HasDefaultSqlDataType Postgres,
+      HasSqlValueSyntax PgValueSyntax,
+      FromBackendRow Postgres
+    )
+    via BinaryField (PgArray a)
+  deriving (Semigroup, Monoid) via V.Vector a
 
-instance (FromField a, FromBackendRow Postgres a, Typeable a) => FromBackendRow Postgres (PgArray a)
-
-instance (FromField a, Typeable a) => FromField (PgArray a) where
-  fromField u v = PgArray <$> fromField u v
-
-instance (ToField a, HasDefaultSqlDataType Postgres a) => ToField (PgArray a) where
-  toField (PgArray arr) =
-    if V.length arr > 0
-      then
-        Many $
-          Plain (byteString "ARRAY[") :
-          V.toList (intersperseC (Plain (char8 ',')) . fmap toField $ arr)
-            <> [ Plain
-                   ( byteString "]::"
-                       <> byteString (BS.toStrict $ pgRenderSyntaxScript getSyntax)
-                       <> byteString "[]"
-                   )
-               ]
-      else Plain (byteString "'{}'")
-    where
-      getSyntax :: PgSyntax
-      getSyntax =
-        let (PgDataTypeSyntax _ syntax _) =
-              defaultSqlDataType (Proxy @a) (Proxy @Postgres) False
-         in syntax
-
-instance (HasDefaultSqlDataType Postgres a, ToField a) => HasSqlValueSyntax PgValueSyntax (PgArray a) where
-  sqlValueSyntax = defaultPgValueSyntax
-
-enumType :: (Enum a, Bounded a) => DataType Postgres a
+enumType :: Enum a => DataType Postgres a
 enumType = DataType intType
 
 textShowType :: (Show a, Read a) => Maybe Word -> DataType Postgres a
 textShowType size = DataType (varCharType size Nothing)
 
-vectorType :: Typeable a => DataType Postgres a -> DataType Postgres (PgArray a)
-vectorType (DataType elemTy) = DataType $ pgUnboundedArrayType elemTy
+-- vectorType :: Typeable a => DataType Postgres a -> DataType Postgres (PgArray a)
+-- vectorType (DataType elemTy) = pgByteaType
 
 coerceType :: Coercible a b => DataType Postgres a -> DataType Postgres b
 coerceType = coerce

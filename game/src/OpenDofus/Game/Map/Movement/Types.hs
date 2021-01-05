@@ -49,7 +49,7 @@ makeClassy ''MovementModifier
 
 data MovementStep a = MovementStep
   { _movementStepPoint :: !a,
-    _movementStepDirection :: !Direction
+    _movementStepDirection :: {-# UNPACK #-} !Direction
   }
   deriving stock
     ( Show,

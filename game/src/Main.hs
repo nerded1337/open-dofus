@@ -7,6 +7,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UnboxedTuples #-}
@@ -32,6 +33,7 @@
 
 module Main where
 
+-- import Control.Concurrent.Async
 import Control.Concurrent.Chan.Unagi.NoBlocking.Unboxed as U
 import qualified Data.Attoparsec.ByteString.Char8 as A
 import qualified Data.ByteString as BS
@@ -54,7 +56,7 @@ import OpenDofus.Game.Network.Message
 import OpenDofus.Game.Server
 import OpenDofus.Prelude
 import qualified StmContainers.Map as M
-import System.Mem (performMajorGC, performMinorGC)
+import System.Mem
 
 type EffectIdText = ByteString
 
@@ -73,9 +75,9 @@ raiseMapEvent e = do
       mid <- liftIO $ atomically $ M.lookup aid $ s ^. gameServerPlayerToMap
       case mid of
         Just foundMapId -> do
-          mcs <- liftIO $ H.lookup (s ^. gameServerMapChannels) foundMapId
+          mcs <- liftIO $ H.lookup (s ^. gameServerMapControllers) foundMapId
           case mcs of
-            Just foundChans -> do
+            Just (_ :<*>: foundChans) -> do
               liftIO $
                 U.writeChan
                   (foundChans ^. mapEventChannelsIn)
@@ -147,7 +149,7 @@ gameCreation acc aid = do
             (s ^. gameServerMapControllers)
             (actualPosition ^. characterPositionMapId)
       case ctl of
-        (Just foundCtl) -> do
+        (Just (foundCtl :<*>: _)) -> do
           let m = foundCtl ^. mapControllerInstance . mapInstanceTemplate
           liftIO $
             atomically $
@@ -226,7 +228,41 @@ characterCreationHandler acc (cn, bi, sex, c1, c2, c3) =
       (_, Nothing) ->
         pure $ Just CharacterCreationFailureReasonInvalidBreed
       (Nothing, Just foundBreed) -> do
-        void $ createNewCharacter (acc ^. accountId) cn foundBreed sex c1 c2 c3
+        let characterMinimumId = 100000
+            defaultGfxSize = 100
+        cid <-
+          GameQuery $
+            fmap ((+ 1) . fromMaybe characterMinimumId . join) $
+              runSelectReturningOne $
+                select $
+                  aggregate_ (max_ . view characterId) $
+                    all_ $ gameDb ^. character
+        let cp =
+              CharacterPosition
+                (CharacterPK cid)
+                (MapPK 36)
+                142
+
+            cl =
+              CharacterLook
+                (CharacterPK cid)
+                ( fromIntegral $
+                    bi * 10
+                      + if unCharacterSex sex then 1 else 0
+                )
+                defaultGfxSize
+                sex
+                c1
+                c2
+                c3
+        void $
+          createNewCharacter
+            (acc ^. accountId)
+            cid
+            cn
+            foundBreed
+            cp
+            cl
         pure Nothing
 
 characterCreation ::
@@ -276,7 +312,7 @@ characterSelection acc characterIdText = do
               emit $ AccountRestrictions $ pc ^. playerCharacterRestrictions
               pure $ GameCreation acc (coerce cid)
             Nothing -> do
-              warn $ "Could not load character: id=" <> showText characterIdText
+              warn $ "Could not load character: id: " <> showText characterIdText
               stay
         False ->
           stay
@@ -400,17 +436,17 @@ stateHandler s (ClientSent packet) =
             MapEventDispatchInformations aid
         'G' :- 'A' :- a0 :- a1 :- a2 :- params ->
           bitraverse_
-            (debug . showText)
+            debugShow
             raiseMapEvent
             $ gameActionStart aid (a0 :- a1 :- a2 :- mempty) params
         'G' :- 'K' :- 'K' :- eid ->
           bitraverse_
-            (debug . showText)
+            debugShow
             raiseMapEvent
             $ gameActionAck aid eid
         'G' :- 'K' :- 'E' :- '1' :- '|' :- cid ->
           bitraverse_
-            (debug . showText)
+            debugShow
             raiseMapEvent
             $ gameActionAbort aid cid
         _ -> do
@@ -448,13 +484,12 @@ logMessage = do
 
 dispatchMessage :: M.Map ActorId GameClient -> ActorId -> GameMessage -> IO ()
 dispatchMessage playerToClient actId msg = do
+  -- (i, o) <- U.newChan
   client <- atomically $ M.lookup actId playerToClient
   traverse_ (`emitToClient` Identity msg) client
 
 app :: IO ()
 app = do
-  compactStore <- compact ()
-
   let makeConnInfo =
         ConnectInfo "localhost" 5432 "nerded" "nerded"
   authDbPool <- createConnPool $ makeConnInfo "opendofus_auth"
@@ -464,35 +499,45 @@ app = do
 
   playerToMap <- M.newIO
 
-  mapChannels <- H.new
+  compactStore <- compact ()
 
-  debug "Loading map templates"
-  mapTemplates <-
-    traverse (fmap getCompact . compactAddWithSharing compactStore)
-      =<< runReaderT
-        (runVolatile @GameDbConn getMaps)
-        gameDbPool
-  debug $ "Map template loaded: " <> showText (length mapTemplates)
+  let doCompact :: MonadIO m => a -> m a
+      doCompact =
+        fmap getCompact
+          . liftIO
+          . compactAddWithSharing compactStore
 
-  debug "Creating map instances"
   (_, mapInstances) <-
-    (traverse . traverse) (fmap getCompact . compactAddWithSharing compactStore)
-      . partitionEithers
-      =<< traverse
-        (\t -> runReaderT (createMapInstance t) gameDbPool)
-        mapTemplates
-  debug $ "Map instances created: " <> showText (length mapInstances)
+    runReaderT
+      ( do
+          debug "Loading map templates"
+          mapTemplates <-
+            traverse doCompact
+              =<< runVolatile @GameDbConn getMaps
+
+          debug $
+            "Map template loaded: "
+              <> showText (length mapTemplates)
+
+          debug "Creating map instances"
+          (traverse . traverse) doCompact . partitionEithers
+            =<< pooledMapConcurrently createMapInstance mapTemplates
+      )
+      gameDbPool
+
+  debug $
+    "Map instances created: "
+      <> showText (length mapInstances)
 
   debug "Creating map controllers"
   mapControllers <-
-    runMaps
-      mapChannels
-      authDbPool
-      gameDbPool
-      (dispatchMessage playerToClient)
+    traverse
+      ( runMap
+          authDbPool
+          gameDbPool
+          (dispatchMessage playerToClient)
+      )
       mapInstances
-
-  threadDelay 2000000
 
   debug "Performing initial garbage collection"
   performMinorGC
@@ -506,14 +551,13 @@ app = do
       <*> pure gameDbPool
       <*> pure (WorldId 614)
       <*> H.fromList (controllerEntry <$> mapControllers)
-      <*> pure mapChannels
       <*> pure playerToClient
       <*> pure playerToMap
       <*> pure compactStore
   startServer server dispatchToHandler
   where
-    controllerEntry c =
-      (c ^. mapControllerInstance . mapInstanceTemplate . mapId, c)
+    controllerEntry t@(ctl :<*>: _) =
+      (ctl ^. mapControllerInstance . mapInstanceTemplate . mapId, t)
     makeClient conn =
       GameClient <$> newIORef Greeting <*> pure conn
 

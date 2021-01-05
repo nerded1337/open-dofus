@@ -27,7 +27,7 @@ module OpenDofus.Game.Character
   )
 where
 
-import Data.ByteString.Lazy.Builder as BS
+import Data.ByteString.Builder as BS
 import OpenDofus.Core.Network.Client
 import OpenDofus.Database
 import OpenDofus.Prelude
@@ -83,8 +83,8 @@ getCharacterList wid accId =
     <$> GameQuery
       ( runSelectReturningList $
           select $ do
-            c <- all_ (gameDb ^. character)
-            cl <- all_ (gameDb ^. characterLook)
+            c <- all_ $ gameDb ^. character
+            cl <- all_ $ gameDb ^. characterLook
             guard_
               ( c
                   ^. characterAccountId

@@ -87,8 +87,13 @@ data WorldServerT f = WorldServer
   }
   deriving (Generic, Beamable)
 
-WorldServer (LensFor worldServerId) (LensFor worldServerCompletion) (LensFor worldServerStatus) (LensFor worldServerIP) (LensFor worldServerPort) =
-  tableLenses
+WorldServer
+  (LensFor worldServerId)
+  (LensFor worldServerCompletion)
+  (LensFor worldServerStatus)
+  (LensFor worldServerIP)
+  (LensFor worldServerPort) =
+    tableLenses
 
 instance Table WorldServerT where
   data PrimaryKey WorldServerT f = WorldServerPK !(C f WorldId)

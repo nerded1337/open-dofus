@@ -45,12 +45,12 @@ loadEffects filePath = SWF.loadData filePath $ \obj -> do
       (Object edmg) = fromMaybe (error "EDMG") $ H.lookup "EDMG" obj
       (Object ehel) = fromMaybe (error "EHEL") $ H.lookup "EHEL" obj
       etype eid =
-        fromMaybe Special $
+        fromMaybe EffectTypeSpecial $
           getFirst $
             foldMap
               First
-              [ Damage <$ H.lookup (T.pack $ show eid) edmg,
-                Heal <$ H.lookup (T.pack $ show eid) ehel
+              [ EffectTypeDamage <$ H.lookup (T.pack $ show eid) edmg,
+                EffectTypeHeal <$ H.lookup (T.pack $ show eid) ehel
               ]
   pure $
     H.elems $
@@ -63,9 +63,9 @@ loadEffects filePath = SWF.loadData filePath $ \obj -> do
 
 getEffect :: Word32 -> EffectType -> Value -> Effect
 getEffect eid etype (Object effect) =
-  let getOperator (String ('+' :- _)) = Just Plus
-      getOperator (String ('-' :- _)) = Just Minus
-      getOperator (String ('/' :- _)) = Just Divide
+  let getOperator (String ('+' :- _)) = Just EffectOperatorPlus
+      getOperator (String ('-' :- _)) = Just EffectOperatorMinus
+      getOperator (String ('/' :- _)) = Just EffectOperatorDivide
       getOperator (String (x :- _)) =
         error $ "Unknown effect operator: " <> show x
       getOperator _ = Nothing
@@ -79,5 +79,5 @@ getEffect eid etype (Object effect) =
         (maybe False (SWF.unsafeBool "hasJet") $ H.lookup "j" effect)
         (maybe False (SWF.unsafeBool "hasJet") $ H.lookup "t" effect)
         (getOperator =<< H.lookup "o" effect)
-        (maybe 0 (SWF.unsafeInt "characteristic") $ H.lookup "c" effect)
+        (toEnum . SWF.unsafeInt "characteristic" $ fromMaybe (error "characteristic") $ H.lookup "c" effect)
 getEffect _ _ x = error $ "Unhandled effect: " <> show x

@@ -31,7 +31,7 @@ module OpenDofus.Database.Game
     GameQuery (..),
     GameDbConn (..),
     breed,
-    breedCaracteristicCost,
+    breedCharacteristicCost,
     breedSpell,
     effect,
     spell,
@@ -53,7 +53,9 @@ module OpenDofus.Database.Game
     character,
     characterPosition,
     characterLook,
-    characterCaracteristic,
+    characterCharacteristic,
+    characterSpell,
+    gameDbChecked,
     gameDb,
     gameDbMigrations,
   )
@@ -84,12 +86,15 @@ newtype GameDbConn = GameDbConn
   { unGameDbConn :: Connection
   }
 
+instance HasConnType (GameDb f) where
+  type ConnTypeOf (GameDb f) = GameDbConn
+
 instance HasQueryType GameDbConn where
   type QueryTypeOf GameDbConn = GameQuery
 
 data GameDb f = GameDb
   { _dbBreed :: !(f (TableEntity BreedT)),
-    _dbBreedCaracteristicCost :: !(f (TableEntity BreedCaracteristicCostT)),
+    _dbBreedCharacteristicCost :: !(f (TableEntity BreedCharacteristicCostT)),
     _dbBreedSpell :: !(f (TableEntity BreedSpellT)),
     _dbEffect :: !(f (TableEntity EffectT)),
     _dbSpell :: !(f (TableEntity SpellT)),
@@ -111,14 +116,15 @@ data GameDb f = GameDb
     _dbCharacter :: !(f (TableEntity CharacterT)),
     _dbCharacterPosition :: !(f (TableEntity CharacterPositionT)),
     _dbCharacterLook :: !(f (TableEntity CharacterLookT)),
-    _dbCharacterCaracteristic :: !(f (TableEntity CharacterCaracteristicT))
+    _dbCharacterCharacteristic :: !(f (TableEntity CharacterCharacteristicT)),
+    _dbCharacterSpell :: !(f (TableEntity CharacterSpellT))
   }
   deriving stock (Generic)
   deriving anyclass (Database Postgres)
 
 GameDb
   (TableLens breed)
-  (TableLens breedCaracteristicCost)
+  (TableLens breedCharacteristicCost)
   (TableLens breedSpell)
   (TableLens effect)
   (TableLens spell)
@@ -140,11 +146,15 @@ GameDb
   (TableLens character)
   (TableLens characterPosition)
   (TableLens characterLook)
-  (TableLens characterCaracteristic) =
+  (TableLens characterCharacteristic)
+  (TableLens characterSpell) =
     dbLenses
 
+gameDbChecked :: CheckedDatabaseSettings Postgres GameDb
+gameDbChecked = evaluateDatabase gameDbMigrations
+
 gameDb :: DatabaseSettings Postgres GameDb
-gameDb = unCheckDatabase $ evaluateDatabase gameDbMigrations
+gameDb = unCheckDatabase gameDbChecked
 
 gameDbMigrations ::
   MigrationSteps Postgres () (CheckedDatabaseSettings Postgres GameDb)
@@ -157,15 +167,15 @@ initialMigration _ =
     <$> createTable
       "breed"
       ( Breed
-          (field "id" int unique notNull)
+          (field "id" int notNull)
           (field "small_name" (varchar (Just 20)) notNull)
           (field "long_name" (varchar (Just 50)) notNull)
           (field "small_description" (varchar (Just 200)) notNull)
           (field "description" (varchar Nothing) notNull)
       )
     <*> createTable
-      "breed_caracteristic_cost"
-      ( BreedCaracteristicCost
+      "breed_characteristic_cost"
+      ( BreedCharacteristicCost
           (BreedPK $ field "breed_id" int notNull)
           (field "element" int notNull)
           (field "floor" int notNull)
@@ -181,18 +191,18 @@ initialMigration _ =
     <*> createTable
       "effect"
       ( Effect
-          (field "id" int unique notNull)
+          (field "id" int notNull)
           (field "type" enumType notNull)
           (field "description" (varchar Nothing) notNull)
           (field "has_jet" boolean notNull)
           (field "show_in_tooltip" boolean notNull)
           (field "operator" (maybeType enumType))
-          (field "characteristic" int notNull)
+          (field "characteristic" enumType)
       )
     <*> createTable
       "spell"
       ( Spell
-          (field "id" int unique notNull)
+          (field "id" int notNull)
           (field "name" (varchar (Just 100)) notNull)
           (field "description" (varchar Nothing) notNull)
       )
@@ -201,8 +211,8 @@ initialMigration _ =
       ( SpellLevel
           (SpellPK $ field "spell_id" int notNull)
           (field "level" int notNull)
-          (field "normal_effects" (vectorType binaryFieldType) notNull)
-          (field "critical_effects" (vectorType binaryFieldType) notNull)
+          (field "normal_effects" binaryFieldType notNull)
+          (field "critical_effects" binaryFieldType notNull)
           (field "ap_cost" int notNull)
           (field "range_min" int notNull)
           (field "range_max" int notNull)
@@ -216,8 +226,8 @@ initialMigration _ =
           (field "launch_count_by_turn" int notNull)
           (field "launch_count_by_player_turn" int notNull)
           (field "delay_between_launch" int notNull)
-          (field "required_states" (vectorType int) notNull)
-          (field "forbidden_states" (vectorType int) notNull)
+          (field "required_states" binaryFieldType notNull)
+          (field "forbidden_states" binaryFieldType notNull)
           (field "min_player_level" int notNull)
           (field "critical_failure_ends_turn" boolean notNull)
       )
@@ -225,7 +235,7 @@ initialMigration _ =
     <*> createTable
       "item_type"
       ( ItemType
-          (field "id" int notNull unique)
+          (field "id" int notNull)
           (ItemSuperTypePK $ field "super_type_id" int notNull)
           (field "name" (varchar (Just 50)) notNull)
           (field "effectZone" (maybeType binaryFieldType))
@@ -239,7 +249,7 @@ initialMigration _ =
     <*> createTable
       "item"
       ( Item
-          (field "id" int notNull unique)
+          (field "id" int notNull)
           (ItemTypePK $ field "type_id" int notNull)
           (field "name" (varchar (Just 100)) notNull)
           (field "description" (varchar Nothing) notNull)
@@ -262,23 +272,23 @@ initialMigration _ =
     <*> createTable
       "super_area"
       ( MapSuperArea
-          (field "id" int notNull unique)
+          (field "id" int notNull)
           (field "name" (varchar (Just 100)) notNull)
       )
     <*> createTable
       "area"
       ( MapArea
-          (field "id" int notNull unique)
+          (field "id" int notNull)
           (field "name" (varchar (Just 100)) notNull)
           (MapSuperAreaPK $ field "super_area_id" int notNull)
       )
     <*> createTable
       "sub_area"
       ( MapSubArea
-          (field "id" int notNull unique)
+          (field "id" int notNull)
           (field "name" (varchar (Just 100)) notNull)
           (MapAreaPK $ field "area_id" int notNull)
-          (field "musics" (unboundedArray int) notNull)
+          (field "musics" binaryFieldType notNull)
       )
     <*> createTable
       "sub_area_neighbour"
@@ -289,7 +299,7 @@ initialMigration _ =
     <*> createTable
       "map"
       ( Map
-          (field "id" int notNull unique)
+          (field "id" int notNull)
           (field "date" (coerceType $ varchar (Just 50)) notNull)
           (MapSubAreaPK $ field "sub_area_id" int notNull)
           (field "x" int notNull)
@@ -306,14 +316,14 @@ initialMigration _ =
     <*> createTable
       "job"
       ( Job
-          (field "id" int notNull unique)
+          (field "id" int notNull)
           (JobPK $ field "sub_job_id" (maybeType int))
           (field "name" (varchar $ Just 50) notNull)
       )
     <*> createTable
       "skill"
       ( Skill
-          (field "id" int notNull unique)
+          (field "id" int notNull)
           (field "description" (varchar $ Just 50) notNull)
           (JobPK $ field "job_id" int notNull)
           (InteractiveObjectPK $ field "interactive_object_id" int notNull)
@@ -329,20 +339,20 @@ initialMigration _ =
     <*> createTable
       "interactive_object"
       ( InteractiveObject
-          (field "id" int notNull unique)
+          (field "id" int notNull)
           (field "type" enumType notNull)
           (field "name" (varchar $ Just 150) notNull)
       )
     <*> createTable
       "interactive_object_gfx"
       ( InteractiveObjectGfx
-          (field "id" int notNull unique)
+          (field "id" int notNull)
           (InteractiveObjectPK $ field "interactive_object_id" int notNull)
       )
     <*> createTable
       "character"
       ( Character
-          (field "id" int notNull unique)
+          (field "id" int notNull)
           (field "name" (coerceType (varchar (Just 20))) notNull unique)
           (BreedPK $ field "breed_id" int notNull)
           (AccountPK $ field "account_id" (coerceType uuid) notNull)
@@ -353,14 +363,14 @@ initialMigration _ =
     <*> createTable
       "character_position"
       ( CharacterPosition
-          (CharacterPK $ field "character_id" int notNull unique)
+          (CharacterPK $ field "character_id" int notNull)
           (MapPK $ field "map_id" int notNull)
           (field "cell_id" int notNull)
       )
     <*> createTable
       "character_look"
       ( CharacterLook
-          (CharacterPK $ field "character_id" int notNull unique)
+          (CharacterPK $ field "character_id" int notNull)
           (field "gfx_id" int notNull)
           (field "gfx_size" int notNull)
           (field "sex" (coerceType boolean) notNull)
@@ -369,10 +379,19 @@ initialMigration _ =
           (field "third_color" int notNull)
       )
     <*> createTable
-      "character_caracteristic"
-      ( CharacterCaracteristic
+      "character_characteristic"
+      ( CharacterCharacteristic
           (CharacterPK $ field "character_id" int notNull)
           (EffectPK $ field "effect_id" int notNull)
           (field "source" enumType notNull)
           (field "value" int notNull)
+      )
+    <*> createTable
+      "character_spell"
+      ( CharacterSpell
+          (CharacterPK $ field "character_id" int notNull)
+          ( SpellLevelPK
+              (SpellPK $ field "spell_id" int notNull)
+              (field "spell_level" int notNull)
+          )
       )

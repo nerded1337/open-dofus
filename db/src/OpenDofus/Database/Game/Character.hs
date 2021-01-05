@@ -32,12 +32,14 @@ module OpenDofus.Database.Game.Character where
 import Data.Binary
 import Database.Beam
 import Database.Beam.Backend
+import Database.Beam.Migrate
 import Database.Beam.Postgres
 import Database.Beam.Postgres.Syntax
 import OpenDofus.Database.Auth.Account
 import OpenDofus.Database.Game.Breed
 import OpenDofus.Database.Game.Effect
 import OpenDofus.Database.Game.Map
+import OpenDofus.Database.Game.Spell
 import OpenDofus.Prelude
 
 newtype CharacterId = CharacterId
@@ -51,9 +53,10 @@ newtype CharacterId = CharacterId
       Real,
       Enum,
       Integral,
-      FromBackendRow Postgres,
+      HasDefaultSqlDataType Postgres,
+      HasSqlValueSyntax PgValueSyntax,
       HasSqlEqualityCheck Postgres,
-      HasSqlValueSyntax PgValueSyntax
+      FromBackendRow Postgres
     )
 
 newtype CharacterName = CharacterName
@@ -80,9 +83,10 @@ newtype CharacterColor = CharacterColor
       Real,
       Enum,
       Integral,
-      FromBackendRow Postgres,
+      HasDefaultSqlDataType Postgres,
+      HasSqlValueSyntax PgValueSyntax,
       HasSqlEqualityCheck Postgres,
-      HasSqlValueSyntax PgValueSyntax
+      FromBackendRow Postgres
     )
 
 newtype GfxId = GfxId
@@ -96,9 +100,10 @@ newtype GfxId = GfxId
       Real,
       Enum,
       Integral,
-      FromBackendRow Postgres,
+      HasDefaultSqlDataType Postgres,
+      HasSqlValueSyntax PgValueSyntax,
       HasSqlEqualityCheck Postgres,
-      HasSqlValueSyntax PgValueSyntax
+      FromBackendRow Postgres
     )
 
 newtype GfxSize = GfxSize
@@ -112,9 +117,10 @@ newtype GfxSize = GfxSize
       Real,
       Enum,
       Integral,
-      FromBackendRow Postgres,
+      HasDefaultSqlDataType Postgres,
+      HasSqlValueSyntax PgValueSyntax,
       HasSqlEqualityCheck Postgres,
-      HasSqlValueSyntax PgValueSyntax
+      FromBackendRow Postgres
     )
 
 newtype CharacterSex = CharacterSex
@@ -124,21 +130,41 @@ newtype CharacterSex = CharacterSex
     ( Show,
       Eq,
       Ord,
-      FromBackendRow Postgres,
+      HasDefaultSqlDataType Postgres,
+      HasSqlValueSyntax PgValueSyntax,
       HasSqlEqualityCheck Postgres,
-      HasSqlValueSyntax PgValueSyntax
+      FromBackendRow Postgres
     )
 
-data CharacterCaracteristicSource
+data CharacterCharacteristicSource
   = Base
   | Gift
   | Bonus
-  deriving stock (Show, Eq, Ord, Bounded, Enum, Generic)
+  deriving stock
+    ( Show,
+      Eq,
+      Ord,
+      Bounded,
+      Enum,
+      Generic
+    )
 
-newtype CharacterCaracteristicValue = CharacterCaracteristicValue
-  { unCaracteristicValue :: Word32
+newtype CharacterCharacteristicValue = CharacterCharacteristicValue
+  { unCharacteristicValue :: Word32
   }
-  deriving newtype (Show, Eq, Ord, Num, Real, Enum, Integral)
+  deriving newtype
+    ( Show,
+      Eq,
+      Ord,
+      Num,
+      Real,
+      Enum,
+      Integral,
+      HasDefaultSqlDataType Postgres,
+      HasSqlValueSyntax PgValueSyntax,
+      HasSqlEqualityCheck Postgres,
+      FromBackendRow Postgres
+    )
 
 newtype CharacterLevel = CharacterLevel
   { unCharacterLevel :: Word32
@@ -151,9 +177,10 @@ newtype CharacterLevel = CharacterLevel
       Real,
       Enum,
       Integral,
-      FromBackendRow Postgres,
+      HasDefaultSqlDataType Postgres,
+      HasSqlValueSyntax PgValueSyntax,
       HasSqlEqualityCheck Postgres,
-      HasSqlValueSyntax PgValueSyntax
+      FromBackendRow Postgres
     )
 
 newtype CharacterMaxLevel = CharacterMaxLevel
@@ -167,9 +194,10 @@ newtype CharacterMaxLevel = CharacterMaxLevel
       Real,
       Enum,
       Integral,
-      FromBackendRow Postgres,
+      HasDefaultSqlDataType Postgres,
+      HasSqlValueSyntax PgValueSyntax,
       HasSqlEqualityCheck Postgres,
-      HasSqlValueSyntax PgValueSyntax
+      FromBackendRow Postgres
     )
 
 newtype CharacterExperience = CharacterExperience
@@ -183,9 +211,10 @@ newtype CharacterExperience = CharacterExperience
       Real,
       Enum,
       Integral,
-      FromBackendRow Postgres,
+      HasDefaultSqlDataType Postgres,
+      HasSqlValueSyntax PgValueSyntax,
       HasSqlEqualityCheck Postgres,
-      HasSqlValueSyntax PgValueSyntax
+      FromBackendRow Postgres
     )
 
 data CharacterT f = Character
@@ -305,46 +334,72 @@ CharacterLook
   (LensFor characterLookThirdColor) =
     tableLenses
 
-data CharacterCaracteristicT f = CharacterCaracteristic
-  { _characterCaracteristicCharacterId :: !(PrimaryKey CharacterT f),
-    _characterCaracteristicEffectId :: !(PrimaryKey EffectT f),
-    _characterCaracteristicSource :: !(C f CharacterCaracteristicSource),
-    _characterCaracteristicValue :: !(C f CharacterCaracteristicValue)
+data CharacterCharacteristicT f = CharacterCharacteristic
+  { _characterCharacteristicCharacterId :: !(PrimaryKey CharacterT f),
+    _characterCharacteristicEffectId :: !(PrimaryKey EffectT f),
+    _characterCharacteristicSource :: !(C f CharacterCharacteristicSource),
+    _characterCharacteristicValue :: !(C f CharacterCharacteristicValue)
   }
   deriving (Generic, Beamable)
 
-instance Table CharacterCaracteristicT where
+instance Table CharacterCharacteristicT where
   data
     PrimaryKey
-      CharacterCaracteristicT
+      CharacterCharacteristicT
       f
-    = CharacterCaracteristicPK
+    = CharacterCharacteristicPK
         !(PrimaryKey CharacterT f)
         !(PrimaryKey EffectT f)
-        !(C f CharacterCaracteristicSource)
+        !(C f CharacterCharacteristicSource)
     deriving (Generic, Beamable)
   primaryKey =
-    CharacterCaracteristicPK
-      <$> _characterCaracteristicCharacterId
-      <*> _characterCaracteristicEffectId
-      <*> _characterCaracteristicSource
+    CharacterCharacteristicPK
+      <$> _characterCharacteristicCharacterId
+      <*> _characterCharacteristicEffectId
+      <*> _characterCharacteristicSource
   {-# INLINE primaryKey #-}
 
-type CharacterCaracteristic = CharacterCaracteristicT Identity
+type CharacterCharacteristic = CharacterCharacteristicT Identity
 
-deriving instance Eq CharacterCaracteristic
+deriving instance Eq CharacterCharacteristic
 
-deriving instance Show CharacterCaracteristic
+deriving instance Show CharacterCharacteristic
 
-type CharacterCaracteristicPK = PrimaryKey CharacterCaracteristicT Identity
+type CharacterCharacteristicPK = PrimaryKey CharacterCharacteristicT Identity
 
-deriving instance Eq CharacterCaracteristicPK
+deriving instance Eq CharacterCharacteristicPK
 
-deriving instance Show CharacterCaracteristicPK
+deriving instance Show CharacterCharacteristicPK
 
-CharacterCaracteristic
+CharacterCharacteristic
   (CharacterPK (LensFor characterCaracteristicCharacterId))
   (EffectPK (LensFor characterCaracteristicEffectId))
   (LensFor characterCaracteristicSource)
   (LensFor characterCaracteristicValue) =
+    tableLenses
+
+data CharacterSpellT f = CharacterSpell
+  { _characterSpellCharacterId :: !(PrimaryKey CharacterT f),
+    _characterSpellSpellLevel :: !(PrimaryKey SpellLevelT f)
+  }
+  deriving (Generic, Beamable)
+
+instance Table CharacterSpellT where
+  data PrimaryKey CharacterSpellT f
+    = CharacterSpellPK
+        !(PrimaryKey CharacterT f)
+        !(PrimaryKey SpellLevelT f)
+    deriving (Generic, Beamable)
+  primaryKey =
+    CharacterSpellPK
+      <$> _characterSpellCharacterId
+      <*> _characterSpellSpellLevel
+  {-# INLINE primaryKey #-}
+
+CharacterSpell
+  (CharacterPK (LensFor characterSpellCharacterId))
+  ( SpellLevelPK
+      (SpellPK (LensFor characterSpellSpellId))
+      (LensFor characterSpellSpellLevel)
+    ) =
     tableLenses

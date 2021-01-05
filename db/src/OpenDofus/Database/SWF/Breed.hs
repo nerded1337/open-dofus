@@ -39,7 +39,7 @@ import OpenDofus.Prelude
 
 loadBreeds ::
   FilePath ->
-  IO [(Breed, V.Vector BreedCaracteristicCost, V.Vector BreedSpell)]
+  IO [(Breed, V.Vector BreedCharacteristicCost, V.Vector BreedSpell)]
 loadBreeds fp = SWF.loadData fp $ \obj -> do
   let (Object breeds) = fromMaybe (error "G") $ H.lookup "G" obj
   pure $
@@ -54,12 +54,12 @@ loadBreeds fp = SWF.loadData fp $ \obj -> do
 getBreed ::
   Word32 ->
   Value ->
-  (Breed, V.Vector BreedCaracteristicCost, V.Vector BreedSpell)
+  (Breed, V.Vector BreedCharacteristicCost, V.Vector BreedSpell)
 getBreed bid (Object b) =
   let str i = SWF.unsafeString i $ fromMaybe (error i) $ H.lookup (T.pack i) b
       arr i = SWF.unsafeArray i $ fromMaybe (error i) $ H.lookup (T.pack i) b
       getStep el (Array v) =
-        BreedCaracteristicCost
+        BreedCharacteristicCost
           (BreedPK (BreedId bid))
           el
           (SWF.unsafeInt "costFloor" $ V.unsafeIndex v 0)

@@ -57,6 +57,7 @@ newtype SpellId = SpellId
       Real,
       Enum,
       Integral,
+      Hashable,
       HasDefaultSqlDataType Postgres,
       HasSqlValueSyntax PgValueSyntax
     )
@@ -79,7 +80,7 @@ data SpellLevelEffect = SpellLevelEffect
       HasDefaultSqlDataType Postgres,
       FromBackendRow Postgres
     )
-    via (BinaryField SpellLevelEffect)
+    via BinaryField SpellLevelEffect
 
 makeClassy ''SpellLevelEffect
 

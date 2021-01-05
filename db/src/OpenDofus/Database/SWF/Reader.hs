@@ -129,6 +129,14 @@ evaluate (Operation operation) = do
           ( Evaluation p tbl (o' :- xs) idx $
               \x -> toMember (A.Object $ H.insert name x o)
           )
+    (ActionGetMember, (StackVal (PushConst16 i)) :- (StackObj (A.Object o) :- xs)) ->
+      do
+        let name = idx $ fromIntegral i
+            o' = StackObj $ fromMaybe (A.Object mempty) $ H.lookup name o
+        put
+          ( Evaluation p tbl (o' :- xs) idx $
+              \x -> toMember (A.Object $ H.insert name x o)
+          )
     (ActionCallMethod, StackVal (PushConst8 _) :- (StackObj _ :- (StackVal (PushInt params) :- xs))) ->
       put
         ( Evaluation
@@ -291,7 +299,7 @@ evaluate (Operation operation) = do
             (A.String x, A.String y) -> StackVal (PushString $ x <> y)
             _ -> error $ "UNKNOWN Add: " <> show b' <> ", " <> show a'
       put (Evaluation p tbl (z :- xs) idx toMember)
-    (x, y) -> error $ "UNKNOWN ACTION: " <> show x <> ", " <> show (S.take 2 y)
+    (x, _) -> error $ "UNKNOWN ACTION: " <> show x
 evaluate x = error $ "Unhandled action: " <> show x
 
 pushToAeson :: PushExpression -> StateT Evaluation IO A.Value

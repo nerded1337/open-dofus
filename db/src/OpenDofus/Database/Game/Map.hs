@@ -37,6 +37,7 @@ import Database.Beam.Backend
 import Database.Beam.Migrate
 import Database.Beam.Postgres
 import Database.Beam.Postgres.Syntax
+import OpenDofus.Database.Types
 import OpenDofus.Prelude
 
 newtype CellId = CellId
@@ -53,6 +54,9 @@ newtype CellId = CellId
       Prim,
       Storable,
       Hashable,
+      HasDefaultSqlDataType Postgres,
+      HasSqlValueSyntax PgValueSyntax,
+      HasSqlEqualityCheck Postgres,
       FromBackendRow Postgres
     )
 
@@ -260,7 +264,7 @@ data MapSubAreaT f = MapSubArea
   { _mapSubAreaId :: !(C f MapSubAreaId),
     _mapSubAreaName :: !(C f Text),
     _mapSubAreaArea :: !(PrimaryKey MapAreaT f),
-    _mapSubAreaMusics :: !(C f (Vector Int32))
+    _mapSubAreaMusics :: !(C f (PgArray Int32))
   }
   deriving (Generic, Beamable)
 
