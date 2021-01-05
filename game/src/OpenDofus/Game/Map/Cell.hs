@@ -95,34 +95,32 @@ prepareCellData = BS.foldr' go (Just [])
 parseCell ::
   CellId ->
   ByteString ->
-  Maybe (CellId, Compose CellT Maybe InteractiveObjectGfxId)
+  Maybe (Compose CellT Maybe InteractiveObjectGfxId)
 parseCell cid = go <=< prepareCellData
   where
     go (a :- b :- c :- d :- e :- f :- g :- h :- i :- j :- _) =
-      Just
-        ( cid,
-          Compose $
-            Cell
-              cid
-              active
-              los
-              lgr
-              gl
-              m
-              lgn
-              gs
-              lgf
-              lo1n
-              lo1r
-              lo1f
-              lo2f
-              lo2i
-              lo2n
-              ( if lo2i > 0
-                  then Just (InteractiveObjectGfxId $ fromIntegral lo2n)
-                  else Nothing
-              )
-        )
+      Just $
+        Compose $
+          Cell
+            cid
+            active
+            los
+            lgr
+            gl
+            m
+            lgn
+            gs
+            lgf
+            lo1n
+            lo1r
+            lo1f
+            lo2f
+            lo2i
+            lo2n
+            ( if lo2i > 0
+                then Just (InteractiveObjectGfxId $ fromIntegral lo2n)
+                else Nothing
+            )
       where
         conv = fromIntegral @_ @Word16
         convB = fromIntegral @_ @FastBool

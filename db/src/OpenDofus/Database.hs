@@ -46,6 +46,7 @@ module OpenDofus.Database
     createNewCharacter,
     getMaps,
     getMapById,
+    getInteractiveObjectGfxIds,
     getInteractiveObjectByGfxId,
     isAccountCharacter,
     getCharacterPosition,
@@ -56,6 +57,7 @@ import Data.Coerce
 import Data.Foldable
 import Data.Functor
 import Data.Pool
+import qualified Data.HashMap.Strict as HM
 import Database.Beam as X
 import Database.Beam.Migrate as X
 import Database.Beam.Migrate.Simple as X
@@ -208,9 +210,10 @@ createConnPool ::
     Coercible Connection a,
     MonadIO m
   ) =>
+  Int ->
   ConnectInfo ->
   m (Pool a)
-createConnPool connInfo =
+createConnPool maxConn connInfo =
   liftIO $
     createPool
       (coerce <$> connect connInfo)
@@ -221,7 +224,7 @@ createConnPool connInfo =
   where
     stripes = 4
     aliveSeconds = 4 * 60
-    maximumConnPerStripe = 100 `quot` stripes
+    maximumConnPerStripe = maxConn `quot` stripes
 
 bringGameDbUpToDate ::
   forall env m.
@@ -448,6 +451,16 @@ getMapById :: MapId -> GameQuery (Maybe Map)
 getMapById mid = GameQuery query
   where
     query = runSelectReturningOne $ lookup_ (gameDb ^. map) (MapPK mid)
+
+getInteractiveObjectGfxIds :: GameQuery (HM.HashMap InteractiveObjectGfxId InteractiveObject)
+getInteractiveObjectGfxIds = GameQuery query
+  where
+    query = fmap HM.fromList $
+      runSelectReturningList $
+      select $ do
+        ioGfx <- all_ $ gameDb ^. interactiveObjectGfx
+        io <- related_ (gameDb ^. interactiveObject) (_interactiveObjectGfxInteractiveObjectId ioGfx)
+        pure (ioGfx ^. interactiveObjectGfxId, io)
 
 getInteractiveObjectByGfxId ::
   InteractiveObjectGfxId -> GameQuery (Maybe InteractiveObject)

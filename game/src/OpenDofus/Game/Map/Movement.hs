@@ -97,7 +97,7 @@ movementDuration m p =
   where
     step t (MovementStep _ d) =
       t +:+ movementSpeed m d
-{-# INLINEABLE movementDuration #-}
+{-# INLINE movementDuration #-}
 
 directionDiscretisation :: MapWidth -> Direction -> Int32
 directionDiscretisation w d =
@@ -112,7 +112,7 @@ directionDiscretisation w d =
     NorthEast -> - w' + 1
   where
     w' = fromIntegral @MapWidth @Int32 w
-{-# INLINEABLE directionDiscretisation #-}
+{-# INLINE directionDiscretisation #-}
 
 directionAtan :: CellPoint -> CellPoint -> Direction
 directionAtan a b
@@ -147,7 +147,7 @@ directionFromCoord w a b
 directionBetween :: MapWidth -> CellId -> CellId -> Direction
 directionBetween w a b =
   directionAtan (cellToPoint w a) (cellToPoint w b)
-{-# INLINEABLE directionBetween #-}
+{-# INLINE directionBetween #-}
 
 compressStep :: MovementStep CellId -> Builder
 compressStep s =
@@ -159,7 +159,6 @@ compressStep s =
       fromMaybe (error "impossible")
         . encode64
         . fromIntegral
-{-# INLINEABLE compressStep #-}
 
 extractSteps ::
   MapWidth ->
@@ -181,7 +180,6 @@ extractSteps w a b d
     b' = conv b
     gap = directionDiscretisation w d
     len = (b' - a') `quot` gap
-{-# INLINEABLE extractSteps #-}
 
 extractFullPath ::
   MapWidth ->
@@ -213,7 +211,6 @@ extractFullPath w c d compressed =
       MovementStep
         (CellId $ (fromIntegral (y .&. 15) `shiftL` 6) .|. fromIntegral z)
         (toEnum $ fromIntegral x)
-{-# INLINEABLE extractFullPath #-}
 
 maximumNumberOfSteps :: Word8
 maximumNumberOfSteps = 15
@@ -255,7 +252,7 @@ serializeCompressedPath compressed
     len = BS.length compressed
     -- 3 chars per step
     nbOfSteps = len `quot` 3
-{-# INLINEABLE serializeCompressedPath #-}
+{-# INLINE serializeCompressedPath #-}
 
 deserializeCompressedPath :: SerializedMovementPath -> CompressedMovementPath
 deserializeCompressedPath = F.foldMap decodeStep

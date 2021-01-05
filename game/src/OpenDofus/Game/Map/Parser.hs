@@ -27,11 +27,11 @@ module OpenDofus.Game.Map.Parser
 where
 
 import Data.Bits
-import Data.ByteString as BS
+import qualified Data.ByteString as BS
 import Data.Either
 import qualified Data.HashMap.Strict as HM
-import Data.Text as T
-import Data.Text.Read as T
+import qualified Data.Text as T
+import qualified Data.Text.Read as T
 import qualified Network.URI.Encode as URI
 import OpenDofus.Database
 import OpenDofus.Game.Map.Cell
@@ -66,7 +66,7 @@ keyChecksum (MapDataKey key) = final `mod` 16
     step x c = x + (fromEnum c `mod` 16)
 {-# INLINE keyChecksum #-}
 
-decompressMapData :: MapCompressedData -> MapDataKey -> ByteString
+decompressMapData :: MapCompressedData -> MapDataKey -> BS.ByteString
 decompressMapData dat key =
   extract $
     T.foldl' step initialState (unMapCompressedData dat)
@@ -97,32 +97,17 @@ nbOfCells :: BS.ByteString -> Int
 nbOfCells d = BS.length d `quot` compressedCellSize
 {-# INLINE nbOfCells #-}
 
-cellSlice :: Int -> (CellId, ByteString -> ByteString)
-cellSlice cid =
-  ( CellId $ fromIntegral cid,
-    sliceStrictByteString
-      (fromIntegral cid * compressedCellSize)
-      ((fromIntegral cid * compressedCellSize) + compressedCellSize)
-  )
-{-# INLINE cellSlice #-}
-
-cellGenerator :: Int -> [(CellId, ByteString -> ByteString)]
-cellGenerator cells = cellSlice <$> [0 .. cells - 1]
-{-# INLINE cellGenerator #-}
-
-cellSlices :: Int -> ByteString -> [(CellId, ByteString)]
-cellSlices cells =
-  sequenceA $ bitraverse pure id <$> cellGenerator cells
-{-# INLINE cellSlices #-}
-
-parseCells ::
-  ByteString ->
-  Maybe [(CellId, Compose CellT Maybe InteractiveObjectGfxId)]
-parseCells decompressed =
-  traverse
-    (uncurry parseCell)
-    (cellSlices (nbOfCells decompressed) decompressed)
-{-# INLINE parseCells #-}
+foldCells :: BS.ByteString -> Maybe (HM.HashMap CellId (Compose CellT Maybe InteractiveObjectGfxId))
+foldCells decompressed = foldMap go [0 .. fromIntegral $ nbOfCells decompressed]
+  where
+    go i =
+      let currentCell =
+            sliceStrictByteString
+              (fromIntegral i * compressedCellSize)
+              (fromIntegral i * compressedCellSize + compressedCellSize)
+              decompressed
+       in HM.singleton i <$> (parseCell i currentCell)
+{-# INLINE foldCells #-}
 
 parseMap ::
   Map ->
@@ -130,9 +115,7 @@ parseMap ::
 parseMap m = parse =<< maybe (Left "Missing data key") Right (m ^. mapDataKey)
   where
     parse =
-      go . decompressMapData (m ^. mapCompressedData)
-
-    go decompressedData =
-      maybe (Left "Invalid key") Right $
-        MapInstance m . HM.fromList <$> parseCells decompressedData
-{-# INLINE parseMap #-}
+      maybe (Left "Invalid key") Right
+      . fmap (MapInstance m)
+      . foldCells
+      . decompressMapData (m ^. mapCompressedData)

@@ -38,7 +38,6 @@ where
 import qualified Data.HashTable.IO as H
 import OpenDofus.Database
 import OpenDofus.Game.Map.Actor
-import OpenDofus.Game.Map.Cell
 import OpenDofus.Game.Map.Instance
 import OpenDofus.Game.Map.Interactive
 import OpenDofus.Game.Network.Message
@@ -46,10 +45,10 @@ import OpenDofus.Prelude
 
 type HashTable k v = H.BasicHashTable k v
 
-type MapController = MapControllerT IO (Compose CellT Maybe InteractiveObject)
+type MapController = MapControllerT IO
 
-data MapControllerT m a = MapController
-  { _mapControllerInstance :: {-# UNPACK #-} !(MapInstanceT a),
+data MapControllerT m = MapController
+  { _mapControllerInstance :: {-# NOUNPACK #-} !MapInstance,
     _mapControllerActors :: {-# UNPACK #-} !(HashTable ActorId Actor),
     _mapControllerInteractiveObjectInstances :: {-# UNPACK #-} !(HashTable CellId InteractiveObjectInstance),
     _mapControllerAuthDbPool :: {-# UNPACK #-} !(Pool AuthDbConn),

@@ -490,13 +490,12 @@ mkDispatchMessage playerToClient = do
   (i, o) <- UB.newChan @(ActorId :<*>: GameMessage)
   nbCap <- getNumCapabilities
   streams <- UB.streamChan nbCap o
-  forM_ streams $
-    \stream -> forkIO $ go stream
+  forM_ streams $ forkIO . go
   pure $ \aid msg -> UB.writeChan i (aid :<*>: msg)
   where
     go s = do
       e <- UB.tryReadNext s
-      s' <- case e of
+      go =<< case e of
         Next (aid :<*>: msg) s' -> do
           client <- atomically $ M.lookup aid playerToClient
           traverse_ (`emitToClient` Identity msg) client
@@ -504,19 +503,16 @@ mkDispatchMessage playerToClient = do
         Pending -> do
           gameDelay $ ms $ 1000 % 64
           pure s
-      go s'
 
-app :: IO ()
-app = do
-  let makeConnInfo =
-        ConnectInfo "localhost" 5432 "nerded" "nerded"
-  authDbPool <- createConnPool $ makeConnInfo "opendofus_auth"
-  gameDbPool <- createConnPool $ makeConnInfo "opendofus_game"
-
-  playerToClient <- M.newIO
-
-  playerToMap <- M.newIO
-
+loadMapControllers ::
+  Pool AuthDbConn ->
+  Pool GameDbConn ->
+  IO
+    ( M.Map ActorId GameClient
+        :<*>: Compact ()
+        :<*>: [MapController :<*>: MapEventChannels]
+    )
+loadMapControllers authDbPool gameDbPool = do
   compactStore <- compact ()
 
   let doCompact :: MonadIO m => a -> m a
@@ -530,26 +526,46 @@ app = do
       ( do
           debug "Loading map templates"
           mapTemplates <-
-            traverse doCompact
-              =<< runVolatile @GameDbConn getMaps
+            runVolatile @GameDbConn getMaps
 
           debug $
             "Map template loaded: "
               <> showText (length mapTemplates)
 
+          debug "Loading interactive objects"
+          interactiveObjects <-
+            doCompact
+              =<< runVolatile @GameDbConn getInteractiveObjectGfxIds
+
           debug "Creating map instances"
-          (traverse . traverse) doCompact . partitionEithers
-            =<< pooledMapConcurrently createMapInstance mapTemplates
+          partitionEithers
+            <$> pooledMapConcurrently
+              (createMapInstance interactiveObjects)
+              mapTemplates
       )
       gameDbPool
 
+  debug "Compacting instances"
+  compactedMapInstances <-
+    traverse doCompact mapInstances
+
+  debug
+    . ("Compact data size: " <>)
+    . (<> "mb")
+    . showText
+    . (`quot` 1000000)
+    =<< compactSize compactStore
+
   debug $
     "Map instances created: "
-      <> showText (length mapInstances)
+      <> showText (length compactedMapInstances)
+
+  playerToClient <- M.newIO
 
   dispatchMessage <-
     mkDispatchMessage playerToClient
 
+  gameDelay $ ms $ 10000
   debug "Creating map controllers"
   mapControllers <-
     traverse
@@ -558,7 +574,24 @@ app = do
           gameDbPool
           dispatchMessage
       )
-      mapInstances
+      compactedMapInstances
+
+  pure $ playerToClient :<*>: compactStore :<*>: mapControllers
+
+loadDbPools :: IO (Pool AuthDbConn :<*>: Pool GameDbConn)
+loadDbPools = do
+  let makeConnInfo =
+        ConnectInfo "localhost" 5432 "nerded" "nerded"
+  authDbPool <- createConnPool 20 $ makeConnInfo "opendofus_auth"
+  gameDbPool <- createConnPool 180 $ makeConnInfo "opendofus_game"
+  pure $ authDbPool :<*>: gameDbPool
+
+app :: IO ()
+app = do
+  authDbPool :<*>: gameDbPool <- loadDbPools
+
+  playerToClient :<*>: compactStore :<*>: mapControllers <-
+    loadMapControllers authDbPool gameDbPool
 
   debug "Performing initial garbage collection"
   performMinorGC
@@ -573,7 +606,7 @@ app = do
       <*> pure (WorldId 614)
       <*> H.fromList (controllerEntry <$> mapControllers)
       <*> pure playerToClient
-      <*> pure playerToMap
+      <*> M.newIO
       <*> pure compactStore
   startServer server dispatchToHandler
   where

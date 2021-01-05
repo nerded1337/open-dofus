@@ -125,6 +125,7 @@ newtype InteractiveObjectGfxId = InteractiveObjectGfxId
       Real,
       Enum,
       Integral,
+      Hashable,
       FromBackendRow Postgres,
       HasSqlEqualityCheck Postgres,
       HasDefaultSqlDataType Postgres,

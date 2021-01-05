@@ -58,20 +58,18 @@ import OpenDofus.Game.Time hiding (threadDelay)
 import OpenDofus.Prelude
 
 createMapInstance ::
-  (MonadIO m, HasConnectPool a GameDbConn, MonadReader a m) =>
+  (MonadUnliftIO m, HasConnectPool a GameDbConn, MonadReader a m) =>
+  HM.HashMap InteractiveObjectGfxId InteractiveObject ->
   Map ->
   m (Either Text MapInstance)
-createMapInstance m = case parseMap m of
+createMapInstance ios m = case parseMap m of
   Right parsedMap -> do
-    gfxLoadedMap <-
-      fmap getCompose $
-        traverse
-          (runVolatile @GameDbConn . getInteractiveObjectByGfxId)
-          $ Compose parsedMap
-    pure $
-      Right $
-        Compose . fmap join . getCompose
-          <$> gfxLoadedMap
+    pure
+      . Right
+      . fmap Compose
+      . getCompose
+      $ ((`HM.lookup` ios) =<<)
+        <$> (Compose . fmap getCompose) parsedMap
   Left err ->
     pure $
       Left $
@@ -148,7 +146,7 @@ runMapWorker ctl s = do
             ms
               ( 1000
                   % if hasPlayer
-                    then 64
+                    then 128
                     else 1
               )
       if updateTime > maximumUpdateTime
