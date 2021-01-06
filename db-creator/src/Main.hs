@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+
 -- Main.hs ---
 
 -- Copyright (C) 2019 Nerd Ed
@@ -32,22 +33,26 @@ import OpenDofus.Prelude
 main :: IO ()
 main = runApp $ do
   authDbPool <-
-    createConnPool @AuthDbConn $
-      ConnectInfo
-        "localhost"
-        5432
-        "nerded"
-        "nerded"
-        "opendofus_auth"
-  gameDbPool <-
-    liftIO $
-      createConnPool @GameDbConn $
-        ConnectInfo
+    createConnPool @AuthDbConn
+      1
+      ( ConnectInfo
           "localhost"
           5432
           "nerded"
           "nerded"
-          "opendofus_game"
+          "opendofus_auth"
+      )
+  gameDbPool <-
+    liftIO $
+      createConnPool @GameDbConn
+        1
+        ( ConnectInfo
+            "localhost"
+            5432
+            "nerded"
+            "nerded"
+            "opendofus_game"
+        )
 
   runReaderT
     ( do
