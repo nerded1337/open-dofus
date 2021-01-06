@@ -263,7 +263,7 @@ logMessage = debugShow =<< view handlerInputMessage
 app :: IO ()
 app = do
   authDbPool <-
-    createConnPool @AuthDbConn $
+    createConnPool @AuthDbConn 20 $
       ConnectInfo
         "localhost"
         5432
